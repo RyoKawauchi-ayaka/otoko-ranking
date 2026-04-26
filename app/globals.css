@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+html,
+body {
+  height: 100%;
+}
+
+/* App-wide base look */
+body {
+  background: linear-gradient(to bottom, #070a16, #050611);
+  color: rgb(245 245 245);
+  background-attachment: fixed;
+}
+
+@keyframes float-bg {
+  0% {
+    background-position:
+      0% 0%,
+      100% 0%,
+      20% 100%,
+      0% 0%;
+  }
+  50% {
+    background-position:
+      15% 10%,
+      85% 12%,
+      28% 92%,
+      0% 0%;
+  }
+  100% {
+    background-position:
+      0% 0%,
+      100% 0%,
+      20% 100%,
+      0% 0%;
+  }
+}
+
+/* subtle motion (respects reduced motion) */
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    animation: float-bg 18s ease-in-out infinite;
+  }
+}
+
+/* App-wide dynamic wallpaper (CSS gradients only; no images) */
+.app-wallpaper {
+  position: fixed;
+  inset: -20vmax;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60vmax 40vmax at 15% 20%, rgba(99, 102, 241, 0.35), transparent 60%),
+    radial-gradient(55vmax 38vmax at 85% 25%, rgba(236, 72, 153, 0.28), transparent 62%),
+    radial-gradient(60vmax 45vmax at 35% 90%, rgba(168, 85, 247, 0.25), transparent 62%),
+    radial-gradient(40vmax 30vmax at 70% 75%, rgba(14, 165, 233, 0.18), transparent 60%),
+    radial-gradient(55vmax 40vmax at 45% 35%, rgba(34, 211, 238, 0.10), transparent 65%);
+  filter: blur(42px) saturate(1.15);
+  opacity: 0.85;
+  transform: translate3d(0, 0, 0) scale(1.02);
+  will-change: transform, background-position;
+}
+
+/* Readability veil */
+.app-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120vmax 80vmax at 50% 30%, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.55));
+}
+
+@keyframes wallpaper-drift {
+  0% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.03);
+    background-position:
+      10% 10%,
+      90% 10%,
+      30% 95%,
+      75% 80%,
+      45% 40%;
+  }
+  50% {
+    transform: translate3d(1.5%, 1%, 0) scale(1.05);
+    background-position:
+      20% 18%,
+      78% 22%,
+      40% 88%,
+      68% 72%,
+      52% 45%;
+  }
+  100% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.03);
+    background-position:
+      10% 10%,
+      90% 10%,
+      30% 95%,
+      75% 80%,
+      45% 40%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-wallpaper {
+    animation: wallpaper-drift 18s ease-in-out infinite;
+  }
+}
+
+/* Ensure app content stays above wallpaper */
+body > div {
+  position: relative;
+  z-index: 1;
+}
+
+/* Make default form controls nicer even without classes */
+input,
+select,
+textarea,
+button {
+  outline: none;
+}
+
+::selection {
+  background: rgba(236, 72, 153, 0.35);
+}
+
