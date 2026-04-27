@@ -5,6 +5,7 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import PodiumIllustration from "./podium-illustration";
 import { useState } from "react";
+import HeartField from "./heart-field";
 
 export default function HomeHero({
   top3,
@@ -19,10 +20,18 @@ export default function HomeHero({
   }[];
 }) {
   const [registerBurst, setRegisterBurst] = useState<null | number>(null);
+  const [registerParticles, setRegisterParticles] = useState<null | { id: number; x: number; y: number }>(null);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col justify-center gap-6 px-6 py-10">
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur md:p-10">
+    <motion.main
+      className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col justify-center gap-6 px-6 py-10"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+    >
+      <div className="neon-card relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_100px_rgba(236,72,153,0.10)] backdrop-blur md:p-10">
+        {/* floating hearts */}
+        <HeartField />
         <div className="pointer-events-none absolute -left-24 -top-24 h-56 w-56 rounded-full bg-pink-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -right-24 -top-28 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
@@ -39,13 +48,7 @@ export default function HomeHero({
             </div>
 
             <h1 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
-              <motion.span
-                className="inline-block bg-gradient-to-r from-white via-white to-white/70 bg-[length:220%_100%] bg-clip-text text-transparent"
-                animate={{ backgroundPositionX: ["0%", "100%", "0%"] }}
-                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-              >
-                表彰台に立つのは誰？
-              </motion.span>
+              <span className="neon-title inline-block">表彰台に立つのは誰？</span>
               <br />
               <motion.span
                 className="inline-block text-white"
@@ -66,8 +69,13 @@ export default function HomeHero({
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.65, delay: 0.05, ease: "easeOut" }}
-            className="rounded-2xl border border-white/10 bg-black/20 p-3"
+            className="relative rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_0_60px_rgba(168,85,247,0.18)]"
           >
+            <motion.div
+              className="pointer-events-none absolute inset-0 rounded-2xl"
+              animate={{ boxShadow: ["0 0 0 rgba(0,0,0,0)", "0 0 40px rgba(236,72,153,0.16)", "0 0 0 rgba(0,0,0,0)"] }}
+              transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+            />
             <PodiumIllustration />
             {top3?.length ? (
               <div className="mt-3 grid grid-cols-3 gap-2">
@@ -78,7 +86,11 @@ export default function HomeHero({
                     className="group rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"
                     aria-label={`ランキング上位のプロフィールを見る`}
                   >
-                    <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-white/10">
+                    <motion.div
+                      className="relative aspect-square w-full overflow-hidden rounded-lg bg-white/10"
+                      animate={p.rank === 1 ? { scale: [1, 1.04, 1] } : undefined}
+                      transition={p.rank === 1 ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" } : undefined}
+                    >
                       {p.photo_url ? (
                         <Image
                           src={p.photo_url}
@@ -99,7 +111,10 @@ export default function HomeHero({
                               : "ring-orange-300/50"
                         }`}
                       />
-                    </div>
+                      {p.rank === 1 ? (
+                        <div className="pointer-events-none absolute -inset-6 bg-[radial-gradient(circle_at_50%_40%,rgba(255,215,0,0.22),transparent_60%)]" />
+                      ) : null}
+                    </motion.div>
                   </Link>
                 ))}
               </div>
@@ -114,7 +129,7 @@ export default function HomeHero({
           transition={{ duration: 0.55, delay: 0.08 }}
         >
           {/* Login: gentle hover float + sheen */}
-          <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
+          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
             <Link
               className="group relative inline-flex overflow-hidden rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-sm"
               href="/login"
@@ -136,9 +151,12 @@ export default function HomeHero({
             <Link
               className="relative inline-flex overflow-hidden rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
               href="/register"
-              onClick={() => {
+              onPointerDown={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 setRegisterBurst(Date.now());
+                setRegisterParticles({ id: Date.now(), x: e.clientX - rect.left, y: e.clientY - rect.top });
                 setTimeout(() => setRegisterBurst(null), 450);
+                setTimeout(() => setRegisterParticles(null), 650);
               }}
             >
               新規登録
@@ -160,11 +178,44 @@ export default function HomeHero({
                 />
               ) : null}
             </AnimatePresence>
+            <AnimatePresence>
+              {registerParticles ? (
+                <motion.div
+                  key={registerParticles.id}
+                  className="pointer-events-none absolute inset-0"
+                  initial={{ opacity: 1 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.65 }}
+                >
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    const a = (Math.PI * 2 * i) / 7;
+                    const dx = Math.cos(a) * (18 + i * 2);
+                    const dy = Math.sin(a) * (18 + i * 2);
+                    return (
+                      <motion.span
+                        key={i}
+                        className="absolute text-[12px]"
+                        style={{
+                          left: registerParticles.x,
+                          top: registerParticles.y,
+                          color: i % 2 ? "rgba(236,72,153,0.9)" : "rgba(59,130,246,0.85)",
+                          filter: "drop-shadow(0 0 10px rgba(236,72,153,0.25))",
+                        }}
+                        initial={{ x: 0, y: 0, scale: 0.7, opacity: 0.95 }}
+                        animate={{ x: dx, y: dy, scale: 1.15, opacity: 0 }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                      >
+                        ♥
+                      </motion.span>
+                    );
+                  })}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
 
-          <Link className="px-2 py-3 text-sm text-white/70 underline decoration-white/30 hover:text-white" href="/ranking">
-            ランキングを見る
-          </Link>
+          {/* トップからランキング導線は出さない */}
         </motion.div>
       </div>
 
@@ -180,7 +231,7 @@ export default function HomeHero({
           </div>
         ))}
       </div>
-    </main>
+    </motion.main>
   );
 }
 

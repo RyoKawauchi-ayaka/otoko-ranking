@@ -19,39 +19,41 @@ function Mascot({
   const duration = variant === "winner" ? 2.6 : 2.9;
 
   return (
-    <motion.g
-      transform={`translate(${x} ${y}) scale(${scale})`}
-      animate={{ y: floatY }}
-      transition={{ repeat: Infinity, duration, ease: "easeInOut" }}
-    >
-      {/* soft glow */}
-      <ellipse cx="0" cy="52" rx="22" ry="8" fill="rgba(0,0,0,0.18)" />
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      {/* NOTE: SVGの transform 属性が framer-motion の transform と競合すると座標が崩れるため、
+          位置決めは外側 <g> に固定し、浮遊アニメだけ内側で行う */}
+      <motion.g animate={{ y: floatY }} transition={{ repeat: Infinity, duration, ease: "easeInOut" }}>
+        {/* soft glow */}
+        <ellipse cx="0" cy="52" rx="22" ry="8" fill="rgba(0,0,0,0.18)" />
 
-      {/* body (rounded blob) */}
-      <path
-        d="M 0 0
-           C 18 -2, 26 12, 22 28
-           C 19 40, 10 48, 0 50
-           C -10 48, -19 40, -22 28
-           C -26 12, -18 -2, 0 0 Z"
-        fill={fill}
-        opacity={0.92}
-      />
-
-      {/* face */}
-      <circle cx="-6" cy="20" r="2.2" fill="rgba(0,0,0,0.35)" />
-      <circle cx="6" cy="20" r="2.2" fill="rgba(0,0,0,0.35)" />
-      <path d="M -6 28 C -2 32, 2 32, 6 28" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="2" strokeLinecap="round" />
-
-      {/* crown for winners */}
-      {variant === "winner" ? (
+        {/* body (rounded blob) */}
         <path
-          d="M -12 6 L -6 -6 L 0 4 L 6 -6 L 12 6 Z"
-          fill="rgba(255,255,255,0.65)"
-          opacity={0.9}
+          d="M 0 0
+             C 18 -2, 26 12, 22 28
+             C 19 40, 10 48, 0 50
+             C -10 48, -19 40, -22 28
+             C -26 12, -18 -2, 0 0 Z"
+          fill={fill}
+          opacity={0.92}
         />
-      ) : null}
-    </motion.g>
+
+        {/* face */}
+        <circle cx="-6" cy="20" r="2.2" fill="rgba(0,0,0,0.35)" />
+        <circle cx="6" cy="20" r="2.2" fill="rgba(0,0,0,0.35)" />
+        <path
+          d="M -6 28 C -2 32, 2 32, 6 28"
+          fill="none"
+          stroke="rgba(0,0,0,0.28)"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+
+        {/* crown for winners */}
+        {variant === "winner" ? (
+          <path d="M -12 6 L -6 -6 L 0 4 L 6 -6 L 12 6 Z" fill="rgba(255,255,255,0.65)" opacity={0.9} />
+        ) : null}
+      </motion.g>
+    </g>
   );
 }
 
