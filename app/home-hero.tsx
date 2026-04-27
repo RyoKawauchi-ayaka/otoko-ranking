@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import PodiumIllustration from "./podium-illustration";
+import { useState } from "react";
 
 export default function HomeHero({
   top3,
@@ -17,6 +18,8 @@ export default function HomeHero({
     photo_url: string | null;
   }[];
 }) {
+  const [registerBurst, setRegisterBurst] = useState<null | number>(null);
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col justify-center gap-6 px-6 py-10">
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur md:p-10">
@@ -110,23 +113,54 @@ export default function HomeHero({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.08 }}
         >
-          <Link
-            className="group relative overflow-hidden rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-sm"
-            href="/login"
-          >
-            <span className="relative z-10">ログイン</span>
-            <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100">
-              <span className="absolute -left-10 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-pink-500/25 blur-2xl" />
-              <span className="absolute -right-10 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-blue-500/25 blur-2xl" />
-            </span>
-          </Link>
+          {/* Login: gentle hover float + sheen */}
+          <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
+            <Link
+              className="group relative inline-flex overflow-hidden rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-sm"
+              href="/login"
+            >
+              <span className="relative z-10">ログイン</span>
+              {/* sheen */}
+              <span className="pointer-events-none absolute inset-0">
+                <motion.span
+                  className="absolute -left-1/2 top-0 h-full w-1/2 bg-gradient-to-r from-transparent via-white/55 to-transparent opacity-0 group-hover:opacity-100"
+                  animate={{ x: ["0%", "220%"] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                />
+              </span>
+            </Link>
+          </motion.div>
 
-          <Link
-            className="rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
-            href="/register"
-          >
-            新規登録
-          </Link>
+          {/* Register: click burst */}
+          <div className="relative">
+            <Link
+              className="relative inline-flex overflow-hidden rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
+              href="/register"
+              onClick={() => {
+                setRegisterBurst(Date.now());
+                setTimeout(() => setRegisterBurst(null), 450);
+              }}
+            >
+              新規登録
+            </Link>
+            <AnimatePresence>
+              {registerBurst ? (
+                <motion.span
+                  key={registerBurst}
+                  className="pointer-events-none absolute left-1/2 top-1/2 block h-2 w-2"
+                  initial={{ opacity: 0.9, scale: 0.2, x: "-50%", y: "-50%" }}
+                  animate={{ opacity: 0, scale: 16 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.45, ease: "easeOut" }}
+                  style={{
+                    background:
+                      "radial-gradient(circle, rgba(236,72,153,0.45), rgba(59,130,246,0.18) 45%, transparent 70%)",
+                    filter: "blur(0.2px)",
+                  }}
+                />
+              ) : null}
+            </AnimatePresence>
+          </div>
 
           <Link className="px-2 py-3 text-sm text-white/70 underline decoration-white/30 hover:text-white" href="/ranking">
             ランキングを見る
