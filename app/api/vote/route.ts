@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicErrorMessage } from "@/lib/safe-error";
+import { publicVoteError } from "@/lib/vote-error";
 
 function inferTagSlugsFromMaleProfile(m: any): string[] {
   const slugs = new Set<string>();
@@ -48,7 +49,10 @@ export async function POST(req: Request) {
     .eq("voter_id", userRes.user.id)
     .eq("target_id", targetId)
     .maybeSingle();
-  if (exErr) return NextResponse.json({ error: publicErrorMessage(exErr, "request failed") }, { status: 400 });
+  if (exErr) {
+    const pe = publicVoteError(exErr);
+    return NextResponse.json({ error: pe.message }, { status: pe.status });
+  }
   if (existingVote?.id) {
     return NextResponse.json({ ok: true, noop: true });
   }
@@ -61,7 +65,10 @@ export async function POST(req: Request) {
     p_daily_limit: Number.isFinite(dailyLimit) ? dailyLimit : 10,
   });
 
-  if (error) return NextResponse.json({ error: publicErrorMessage(error, "request failed") }, { status: 400 });
+  if (error) {
+    const pe = publicVoteError(error);
+    return NextResponse.json({ error: pe.message }, { status: pe.status });
+  }
 
   // Auto-collect features (no extra UI). Best-effort; failures shouldn't block vote.
   try {
