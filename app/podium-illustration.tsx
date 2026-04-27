@@ -113,9 +113,9 @@ export default function PodiumIllustration() {
 
           {/* winners (male) */}
           {/* place mascots on podium tops */}
-          <Mascot x={280} y={58} scale={1.08} fill="url(#gold)" variant="winner" />
-          <Mascot x={178} y={98} scale={1.0} fill="url(#silver)" variant="winner" />
-          <Mascot x={382} y={116} scale={0.96} fill="url(#bronze)" variant="winner" />
+          <Mascot x={280} y={74} scale={1.08} fill="url(#gold)" variant="winner" />
+          <Mascot x={178} y={112} scale={1.0} fill="url(#silver)" variant="winner" />
+          <Mascot x={382} y={128} scale={0.96} fill="url(#bronze)" variant="winner" />
 
           {/* audience (female) clapping */}
           <Mascot x={92} y={156} scale={0.8} fill="rgba(255,255,255,0.75)" variant="audience" />
