@@ -24,7 +24,7 @@ export default function HomeHero({
 
   return (
     <motion.main
-      className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col justify-center gap-6 px-6 py-10"
+      className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-6 px-6 pb-10 pt-6"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -76,49 +76,7 @@ export default function HomeHero({
               animate={{ boxShadow: ["0 0 0 rgba(0,0,0,0)", "0 0 40px rgba(236,72,153,0.16)", "0 0 0 rgba(0,0,0,0)"] }}
               transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
             />
-            <PodiumIllustration />
-            {top3?.length ? (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {top3.map((p) => (
-                  <Link
-                    key={p.profile_id}
-                    href={`/profile/${p.profile_id}`}
-                    className="group rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"
-                    aria-label={`ランキング上位のプロフィールを見る`}
-                  >
-                    <motion.div
-                      className="relative aspect-square w-full overflow-hidden rounded-lg bg-white/10"
-                      animate={p.rank === 1 ? { scale: [1, 1.04, 1] } : undefined}
-                      transition={p.rank === 1 ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" } : undefined}
-                    >
-                      {p.photo_url ? (
-                        <Image
-                          src={p.photo_url}
-                          alt=""
-                          fill
-                          sizes="(max-width: 768px) 33vw, 140px"
-                          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(236,72,153,0.25),transparent_55%),radial-gradient(circle_at_70%_60%,rgba(59,130,246,0.22),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]" />
-                      )}
-                      <div
-                        className={`pointer-events-none absolute inset-0 ring-2 ${
-                          p.rank === 1
-                            ? "ring-yellow-300/60"
-                            : p.rank === 2
-                              ? "ring-slate-200/50"
-                              : "ring-orange-300/50"
-                        }`}
-                      />
-                      {p.rank === 1 ? (
-                        <div className="pointer-events-none absolute -inset-6 bg-[radial-gradient(circle_at_50%_40%,rgba(255,215,0,0.22),transparent_60%)]" />
-                      ) : null}
-                    </motion.div>
-                  </Link>
-                ))}
-              </div>
-            ) : null}
+            <PodiumIllustration top3={top3} />
           </motion.div>
         </div>
 
