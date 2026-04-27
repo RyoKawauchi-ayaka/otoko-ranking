@@ -318,9 +318,21 @@ export default function FeedClient() {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-6">
         <p className="text-sm text-red-300">{error}</p>
-        <Link className="text-sm underline text-white/80" href="/ranking">
-          ランキングを見る
-        </Link>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <button
+            type="button"
+            className="underline text-white/80"
+            onClick={() => window.location.reload()}
+          >
+            再読み込み
+          </button>
+          <Link className="underline text-white/80" href="/ranking">
+            ランキングを見る
+          </Link>
+          <Link className="underline text-white/80" href="/mypage">
+            マイページ
+          </Link>
+        </div>
       </main>
     );
   }

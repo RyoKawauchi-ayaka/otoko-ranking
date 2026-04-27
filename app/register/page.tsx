@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { toJapaneseAuthError } from "@/lib/auth-error-ja";
 
 type Gender = "male" | "female";
 
@@ -43,7 +44,7 @@ export default function RegisterPage() {
 
       setDone(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "登録に失敗しました");
+      setError(toJapaneseAuthError(e, "登録に失敗しました。"));
     } finally {
       setBusy(false);
     }
@@ -64,7 +65,7 @@ export default function RegisterPage() {
       });
       if (e) throw e;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Google登録に失敗しました");
+      setError(toJapaneseAuthError(e, "Google登録に失敗しました。"));
       setBusy(false);
     }
   }

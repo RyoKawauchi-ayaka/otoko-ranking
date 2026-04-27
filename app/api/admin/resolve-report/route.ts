@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { assertSameOrigin } from "@/lib/same-origin";
 
 export async function POST(req: Request) {
+  try {
+    assertSameOrigin(req);
+  } catch {
+    return NextResponse.json({ error: "bad request" }, { status: 400 });
+  }
   const supabase = await createSupabaseServerClient();
   const { data: userRes } = await supabase.auth.getUser();
   if (!userRes.user) return NextResponse.redirect(new URL("/login", req.url), { status: 303 });

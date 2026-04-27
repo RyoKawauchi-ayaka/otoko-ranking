@@ -2,53 +2,56 @@
 
 import { motion } from "framer-motion";
 
-function StickPerson({
+function Mascot({
   x,
   y,
   scale = 1,
-  color = "rgba(255,255,255,0.9)",
-  pose = "stand",
+  fill = "rgba(255,255,255,0.9)",
+  variant = "winner",
 }: {
   x: number;
   y: number;
   scale?: number;
-  color?: string;
-  pose?: "stand" | "clap";
+  fill?: string;
+  variant?: "winner" | "audience";
 }) {
-  const armRotate = pose === "clap" ? [-12, 12, -12] : [0, 0, 0];
-  const armDuration = pose === "clap" ? 0.6 : 1;
+  const floatY = variant === "winner" ? [0, -2, 0] : [0, -1.2, 0];
+  const duration = variant === "winner" ? 2.6 : 2.9;
 
   return (
-    <g transform={`translate(${x} ${y}) scale(${scale})`} stroke={color} strokeWidth={3} strokeLinecap="round">
-      {/* head */}
-      <circle cx={0} cy={-18} r={10} fill="none" />
-      {/* body */}
-      <line x1={0} y1={-8} x2={0} y2={22} />
+    <motion.g
+      transform={`translate(${x} ${y}) scale(${scale})`}
+      animate={{ y: floatY }}
+      transition={{ repeat: Infinity, duration, ease: "easeInOut" }}
+    >
+      {/* soft glow */}
+      <ellipse cx="0" cy="52" rx="22" ry="8" fill="rgba(0,0,0,0.18)" />
 
-      {/* left arm */}
-      <motion.g
-        style={{ transformOrigin: "0px -2px" }}
-        animate={{ rotate: armRotate }}
-        transition={{ repeat: Infinity, duration: armDuration, ease: "easeInOut" }}
-      >
-        <line x1={0} y1={0} x2={-16} y2={10} />
-        {pose === "clap" ? <line x1={-16} y1={10} x2={-6} y2={16} /> : null}
-      </motion.g>
+      {/* body (rounded blob) */}
+      <path
+        d="M 0 0
+           C 18 -2, 26 12, 22 28
+           C 19 40, 10 48, 0 50
+           C -10 48, -19 40, -22 28
+           C -26 12, -18 -2, 0 0 Z"
+        fill={fill}
+        opacity={0.92}
+      />
 
-      {/* right arm */}
-      <motion.g
-        style={{ transformOrigin: "0px -2px" }}
-        animate={{ rotate: armRotate.map((v) => -v) }}
-        transition={{ repeat: Infinity, duration: armDuration, ease: "easeInOut" }}
-      >
-        <line x1={0} y1={0} x2={16} y2={10} />
-        {pose === "clap" ? <line x1={16} y1={10} x2={6} y2={16} /> : null}
-      </motion.g>
+      {/* face */}
+      <circle cx="-6" cy="20" r="2.2" fill="rgba(0,0,0,0.35)" />
+      <circle cx="6" cy="20" r="2.2" fill="rgba(0,0,0,0.35)" />
+      <path d="M -6 28 C -2 32, 2 32, 6 28" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="2" strokeLinecap="round" />
 
-      {/* legs */}
-      <line x1={0} y1={22} x2={-12} y2={46} />
-      <line x1={0} y1={22} x2={12} y2={46} />
-    </g>
+      {/* crown for winners */}
+      {variant === "winner" ? (
+        <path
+          d="M -12 6 L -6 -6 L 0 4 L 6 -6 L 12 6 Z"
+          fill="rgba(255,255,255,0.65)"
+          opacity={0.9}
+        />
+      ) : null}
+    </motion.g>
   );
 }
 
@@ -109,21 +112,15 @@ export default function PodiumIllustration() {
           </g>
 
           {/* winners (male) */}
-          <motion.g animate={{ y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}>
-            <StickPerson x={280} y={110} scale={1.05} color="url(#gold)" />
-          </motion.g>
-          <motion.g animate={{ y: [0, -1.5, 0] }} transition={{ repeat: Infinity, duration: 2.6, ease: "easeInOut" }}>
-            <StickPerson x={178} y={140} scale={0.98} color="url(#silver)" />
-          </motion.g>
-          <motion.g animate={{ y: [0, -1.2, 0] }} transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}>
-            <StickPerson x={382} y={156} scale={0.95} color="url(#bronze)" />
-          </motion.g>
+          <Mascot x={280} y={86} scale={1.08} fill="url(#gold)" variant="winner" />
+          <Mascot x={178} y={118} scale={1.0} fill="url(#silver)" variant="winner" />
+          <Mascot x={382} y={134} scale={0.96} fill="url(#bronze)" variant="winner" />
 
           {/* audience (female) clapping */}
-          <StickPerson x={92} y={174} scale={0.85} color="rgba(255,255,255,0.75)" pose="clap" />
-          <StickPerson x={60} y={188} scale={0.78} color="rgba(255,255,255,0.6)" pose="clap" />
-          <StickPerson x={468} y={182} scale={0.82} color="rgba(255,255,255,0.7)" pose="clap" />
-          <StickPerson x={500} y={194} scale={0.74} color="rgba(255,255,255,0.55)" pose="clap" />
+          <Mascot x={92} y={156} scale={0.8} fill="rgba(255,255,255,0.75)" variant="audience" />
+          <Mascot x={60} y={170} scale={0.72} fill="rgba(255,255,255,0.6)" variant="audience" />
+          <Mascot x={468} y={164} scale={0.78} fill="rgba(255,255,255,0.7)" variant="audience" />
+          <Mascot x={500} y={176} scale={0.7} fill="rgba(255,255,255,0.55)" variant="audience" />
 
           {/* confetti */}
           {Array.from({ length: 16 }).map((_, i) => {

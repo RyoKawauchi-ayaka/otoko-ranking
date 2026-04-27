@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { toJapaneseAuthError } from "@/lib/auth-error-ja";
 
 export default function LoginClient() {
   const router = useRouter();
@@ -15,47 +16,37 @@ export default function LoginClient() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function demoLogin(kind: "female" | "male") {
-    setBusy(true);
-    setError(null);
-    try {
-      if (!supabase) throw new Error("Supabase設定が未完了です（.env.local を確認してください）");
-
-      // Ensure demo accounts exist (server creates + email_confirm)
-      const boot = await fetch("/api/dev/bootstrap", { method: "POST" });
-      const bootJson = (await boot.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; demo?: { female?: { email: string; password: string }; male?: { email: string; password: string } } }
-        | null;
-      if (!boot.ok) throw new Error(bootJson?.error ?? "デモ初期化に失敗しました");
-
-      const creds = kind === "female" ? bootJson?.demo?.female : bootJson?.demo?.male;
-      if (!creds?.email || !creds?.password) throw new Error("デモ認証情報が取得できません");
-
-      const { error: e } = await supabase.auth.signInWithPassword({
-        email: creds.email,
-        password: creds.password,
-      });
-      if (e) throw e;
-
-      router.replace(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "デモログインに失敗しました");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [canResendConfirm, setCanResendConfirm] = useState(false);
 
   async function onLogin() {
     setBusy(true);
     setError(null);
+    setCanResendConfirm(false);
     try {
       if (!supabase) throw new Error("Supabase設定が未完了です（.env.local を確認してください）");
       const { error: e } = await supabase.auth.signInWithPassword({ email, password });
       if (e) throw e;
       router.replace(next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ログインに失敗しました");
+      const msg = toJapaneseAuthError(e, "ログインに失敗しました。");
+      setError(msg);
+      const raw = e instanceof Error ? e.message : "";
+      if (raw.toLowerCase().includes("email not confirmed")) setCanResendConfirm(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onResendConfirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (!supabase) throw new Error("Supabase設定が未完了です。");
+      const { error: e } = await supabase.auth.resend({ type: "signup", email });
+      if (e) throw e;
+      setError("確認メールを再送しました。受信トレイをご確認ください。");
+    } catch (e) {
+      setError(toJapaneseAuthError(e, "確認メールの再送に失敗しました。"));
     } finally {
       setBusy(false);
     }
@@ -75,7 +66,7 @@ export default function LoginClient() {
       });
       if (e) throw e;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Googleログインに失敗しました");
+      setError(toJapaneseAuthError(e, "Googleログインに失敗しました。"));
       setBusy(false);
     }
   }
@@ -97,28 +88,6 @@ export default function LoginClient() {
         ) : null}
 
         <div className="mt-6 grid gap-3">
-          <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-3">
-            <div className="text-xs font-semibold text-white/80">メールが来ない/認証が面倒なとき</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                className="rounded-xl bg-white px-3 py-3 text-sm font-semibold text-black shadow-sm disabled:opacity-50"
-                type="button"
-                disabled={busy || !supabase}
-                onClick={() => void demoLogin("female")}
-              >
-                デモ（女性）で入る
-              </button>
-              <button
-                className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50"
-                type="button"
-                disabled={busy || !supabase}
-                onClick={() => void demoLogin("male")}
-              >
-                デモ（男性）で入る
-              </button>
-            </div>
-          </div>
-
           <button
             className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50"
             onClick={onGoogle}
@@ -159,6 +128,16 @@ export default function LoginClient() {
           </label>
 
           {error ? <p className="text-sm text-red-200">{error}</p> : null}
+          {canResendConfirm ? (
+            <button
+              className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+              onClick={onResendConfirm}
+              disabled={busy || !supabase || !email}
+              type="button"
+            >
+              確認メールを再送する
+            </button>
+          ) : null}
 
           <button
             className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-sm disabled:opacity-50"
@@ -168,6 +147,10 @@ export default function LoginClient() {
           >
             ログイン
           </button>
+
+          <Link className="text-sm text-white/70 underline decoration-white/30 hover:text-white" href="/forgot-password">
+            パスワードを忘れた
+          </Link>
 
           <p className="text-sm text-white/70">
             アカウントがない場合は{" "}

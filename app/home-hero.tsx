@@ -36,9 +36,21 @@ export default function HomeHero({
             </div>
 
             <h1 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
-              表彰台に立つのは誰？
+              <motion.span
+                className="inline-block bg-gradient-to-r from-white via-white to-white/70 bg-[length:220%_100%] bg-clip-text text-transparent"
+                animate={{ backgroundPositionX: ["0%", "100%", "0%"] }}
+                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+              >
+                表彰台に立つのは誰？
+              </motion.span>
               <br />
-              投票で“モテ”を可視化。
+              <motion.span
+                className="inline-block text-white"
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                投票で“モテ”を可視化。
+              </motion.span>
             </h1>
 
             <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-white/75 md:text-base">
@@ -60,22 +72,30 @@ export default function HomeHero({
                   <Link
                     key={p.profile_id}
                     href={`/profile/${p.profile_id}`}
-                    className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                    className="group rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                    aria-label={`ランキング上位のプロフィールを見る`}
                   >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 text-center text-sm font-semibold text-white/90">
-                        {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : "🥉"}
-                      </div>
-                      <div className="relative h-10 w-10 overflow-hidden rounded-full bg-white/10">
-                        {p.photo_url ? <Image src={p.photo_url} alt={p.nickname} fill className="object-cover" /> : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-semibold text-white">{p.nickname}</div>
-                        <div className="text-[11px] text-white/70">
-                          Bayes {p.score.toFixed(2)}
-                          {typeof p.n === "number" ? <span className="text-white/55"> · n={p.n}</span> : null}
-                        </div>
-                      </div>
+                    <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-white/10">
+                      {p.photo_url ? (
+                        <Image
+                          src={p.photo_url}
+                          alt=""
+                          fill
+                          sizes="(max-width: 768px) 33vw, 140px"
+                          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(236,72,153,0.25),transparent_55%),radial-gradient(circle_at_70%_60%,rgba(59,130,246,0.22),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]" />
+                      )}
+                      <div
+                        className={`pointer-events-none absolute inset-0 ring-2 ${
+                          p.rank === 1
+                            ? "ring-yellow-300/60"
+                            : p.rank === 2
+                              ? "ring-slate-200/50"
+                              : "ring-orange-300/50"
+                        }`}
+                      />
                     </div>
                   </Link>
                 ))}
