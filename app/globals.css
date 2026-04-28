@@ -149,19 +149,13 @@ button {
 .neon-card {
   position: relative;
 }
-.neon-card::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: 1.6rem;
-  background: linear-gradient(90deg, rgba(236,72,153,0.35), rgba(168,85,247,0.25), rgba(59,130,246,0.25));
-  filter: blur(10px);
-  opacity: 0.35;
-  z-index: 0;
-}
-.neon-card > * {
-  position: relative;
-  z-index: 1;
+.neon-card {
+  /* blur疑似要素は環境によって余白/スクロール領域に影響しうるため、box-shadowで代替 */
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 50px rgba(236, 72, 153, 0.12),
+    0 0 70px rgba(168, 85, 247, 0.10),
+    0 0 80px rgba(59, 130, 246, 0.08);
 }
 
 

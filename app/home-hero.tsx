@@ -5,7 +5,6 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import PodiumIllustration from "./podium-illustration";
 import { useState } from "react";
-import HeartField from "./heart-field";
 
 export default function HomeHero({
   top3,
@@ -30,8 +29,6 @@ export default function HomeHero({
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
       <div className="neon-card relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_100px_rgba(236,72,153,0.10)] backdrop-blur md:p-10">
-        {/* floating hearts */}
-        <HeartField />
         {/* NOTE: 余白発生を避けるため、負のoffsetを使わず画面内に収める */}
         <div className="pointer-events-none absolute left-6 top-6 h-44 w-44 rounded-full bg-pink-500/20 blur-3xl md:h-56 md:w-56" />
         <div className="pointer-events-none absolute right-6 top-6 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl md:h-56 md:w-56" />
