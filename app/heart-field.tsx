@@ -28,14 +28,19 @@ export default function HeartField({ count = 14 }: { count?: number }) {
   }, [count]);
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      // 念のためスクロール領域への影響を隔離（描画のみ）
+      style={{ contain: "layout paint" }}
+    >
       {items.map((it, idx) => (
         <motion.div
           key={idx}
-          className="absolute -bottom-16"
+          className="absolute bottom-0"
           style={{ left: `${it.left}%` }}
-          initial={{ y: 0, x: 0, rotate: -8 }}
-          animate={{ y: [-20, -420], x: [0, (idx % 2 ? 1 : -1) * 40], rotate: [-8, 8] }}
+          // 開始位置は下端の内側に置き、負のbottomを使わない
+          initial={{ y: 70, x: 0, rotate: -8 }}
+          animate={{ y: [70, -420], x: [0, (idx % 2 ? 1 : -1) * 40], rotate: [-8, 8] }}
           transition={{ duration: it.dur, delay: it.delay, repeat: Infinity, ease: "linear" }}
         >
           <div style={{ opacity: it.opacity }}>
