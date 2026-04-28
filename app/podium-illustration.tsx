@@ -84,9 +84,22 @@ export default function PodiumIllustration({
           <path d="M40 224 C 160 200, 400 200, 520 224" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
 
           {/* podium blocks */}
-          <g filter="url(#glow)">
-            <rect x="232" y="110" width="96" height="114" rx="18" fill="url(#p)" stroke="rgba(255,255,255,0.14)" />
+          <motion.g
+            filter="url(#glow)"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: [0, -2, 0] }}
+            transition={{ opacity: { duration: 0.6 }, y: { duration: 3.4, repeat: Infinity, ease: "easeInOut" } }}
+          >
+            {/* #1 (gold) */}
+            <rect x="232" y="110" width="96" height="114" rx="18" fill="url(#gold)" opacity="0.55" />
+            <rect x="232" y="110" width="96" height="114" rx="18" fill="url(#p)" stroke="rgba(255,255,255,0.16)" />
+
+            {/* #2 (silver) */}
+            <rect x="132" y="140" width="92" height="84" rx="18" fill="url(#silver)" opacity="0.38" />
             <rect x="132" y="140" width="92" height="84" rx="18" fill="url(#p)" stroke="rgba(255,255,255,0.12)" />
+
+            {/* #3 (bronze) */}
+            <rect x="336" y="156" width="92" height="68" rx="18" fill="url(#bronze)" opacity="0.40" />
             <rect x="336" y="156" width="92" height="68" rx="18" fill="url(#p)" stroke="rgba(255,255,255,0.12)" />
 
             <text x="280" y="150" textAnchor="middle" fill="rgba(255,255,255,0.85)" fontSize="28" fontWeight="700">
@@ -98,7 +111,7 @@ export default function PodiumIllustration({
             <text x="382" y="190" textAnchor="middle" fill="rgba(255,255,255,0.75)" fontSize="22" fontWeight="700">
               3
             </text>
-          </g>
+          </motion.g>
 
           {/* neon halo */}
           <motion.circle
@@ -149,6 +162,23 @@ export default function PodiumIllustration({
             WEEKLY RANKING
           </text>
           <path d="M236 30 L324 30" stroke="url(#neon)" strokeWidth="2" opacity="0.6" />
+
+          {/* sparkles (lightweight) */}
+          {Array.from({ length: 8 }).map((_, i) => {
+            const cx = 180 + i * 28;
+            const cy = 62 + (i % 3) * 12;
+            return (
+              <motion.circle
+                key={i}
+                cx={cx}
+                cy={cy}
+                r={1.8}
+                fill={i % 2 ? "rgba(236,72,153,0.75)" : "rgba(59,130,246,0.65)"}
+                animate={{ opacity: [0.1, 0.9, 0.1], r: [1.2, 2.2, 1.2] }}
+                transition={{ duration: 2.2 + (i % 4) * 0.3, repeat: Infinity, ease: "easeInOut", delay: (i % 5) * 0.12 }}
+              />
+            );
+          })}
 
           {/* confetti */}
           {Array.from({ length: 16 }).map((_, i) => {

@@ -401,29 +401,18 @@ export default function FeedClient() {
         <h1 className="text-lg font-semibold text-white">男性評価</h1>
         <div className="flex items-center gap-3">
           {(() => {
-            const need = 10;
-            const cnt = rankUnlockCount;
-            const locked = cnt < need;
-            const pct = Math.min(100, Math.round((cnt / need) * 100));
+            const locked = rankUnlockCount < 10;
             return (
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:block text-xs text-white/75">
-                  ランキング解放: <span className="font-semibold text-white">{cnt}</span> / {need}
-                </div>
-                <div className="hidden sm:block h-1.5 w-28 overflow-hidden rounded-full bg-white/15">
-                  <div className="h-full rounded-full bg-gradient-to-r from-pink-400 to-emerald-400" style={{ width: `${pct}%` }} />
-                </div>
-                <button
-                  type="button"
-                  className="text-sm underline text-white/80"
-                  onClick={() => {
-                    if (locked) setRankLockedPopupOpen(true);
-                    else router.push("/ranking");
-                  }}
-                >
-                  ランキング{locked ? "（🔒）" : ""}
-                </button>
-              </div>
+              <button
+                type="button"
+                className="text-sm underline text-white/80"
+                onClick={() => {
+                  if (locked) setRankLockedPopupOpen(true);
+                  else router.push("/ranking");
+                }}
+              >
+                ランキング{locked ? "（🔒）" : ""}
+              </button>
             );
           })()}
         </div>

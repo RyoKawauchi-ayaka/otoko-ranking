@@ -24,7 +24,7 @@ export default function HomeHero({
 
   return (
     <motion.main
-      className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-6 px-6 pb-10 pt-0"
+      className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 pb-10 pt-0"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
