@@ -32,9 +32,10 @@ export default function HomeHero({
       <div className="neon-card relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_100px_rgba(236,72,153,0.10)] backdrop-blur md:p-10">
         {/* floating hearts */}
         <HeartField />
-        <div className="pointer-events-none absolute -left-24 -top-24 h-56 w-56 rounded-full bg-pink-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -right-24 -top-28 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
+        {/* NOTE: 余白発生を避けるため、負のoffsetを使わず画面内に収める */}
+        <div className="pointer-events-none absolute left-6 top-6 h-44 w-44 rounded-full bg-pink-500/20 blur-3xl md:h-56 md:w-56" />
+        <div className="pointer-events-none absolute right-6 top-6 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl md:h-56 md:w-56" />
+        <div className="pointer-events-none absolute bottom-6 left-1/3 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl md:h-56 md:w-56" />
 
         <div className="grid gap-6 md:grid-cols-2 md:items-center">
           <motion.div
