@@ -49,6 +49,11 @@ export default function FeedClient() {
   const [todayVotes, setTodayVotes] = useState(0);
   const [rankUnlockCount, setRankUnlockCount] = useState(0);
   const [rankLockedPopupOpen, setRankLockedPopupOpen] = useState(false);
+  const [totalUniqueVotes, setTotalUniqueVotes] = useState(0);
+  const [meId, setMeId] = useState<string | null>(null);
+  const [unlockModal, setUnlockModal] = useState<null | { title: string; body: string; kind: "rank" | "pref"; nonce: number }>(
+    null,
+  );
 
   const [cardIndex, setCardIndex] = useState(0);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -165,6 +170,8 @@ export default function FeedClient() {
         setVotedTargetIds(voted);
         setTodayVotes(todayUnique);
         setRankUnlockCount(todayUnique);
+        setTotalUniqueVotes(voted.size);
+        setMeId(user.id);
         setCardIndex(0);
         setPhotoIndex(0);
         setLastVote(null);
@@ -268,6 +275,40 @@ export default function FeedClient() {
       if (!json?.noop) {
         setTodayVotes((n) => n + 1);
         setRankUnlockCount((n) => n + 1);
+        setTotalUniqueVotes((n) => n + 1);
+
+        // unlock popups (first time only; localStorage)
+        const uid = meId;
+        if (uid) {
+          const nextToday = rankUnlockCount + 1;
+          const nextTotal = totalUniqueVotes + 1;
+
+          if (nextToday === 10) {
+            const key = `unlock_shown_rank_${uid}_${tokyoDayStartIso().slice(0, 10)}`;
+            if (!localStorage.getItem(key)) {
+              localStorage.setItem(key, "1");
+              setUnlockModal({
+                kind: "rank",
+                nonce: Date.now(),
+                title: "ランキングが解放されました！",
+                body: "今日の評価が10人に到達しました。さっそくランキングをチェックしよう。",
+              });
+            }
+          }
+
+          if (nextTotal === 20) {
+            const key = `unlock_shown_pref_${uid}`;
+            if (!localStorage.getItem(key)) {
+              localStorage.setItem(key, "1");
+              setUnlockModal({
+                kind: "pref",
+                nonce: Date.now(),
+                title: "あなたの好み分析が利用可能になりました！",
+                body: "累計20人の評価に到達しました。あなたの傾向を見てみよう。",
+              });
+            }
+          }
+        }
       }
 
       setLastVote({ targetId: current.profile_id, rating });
@@ -445,6 +486,143 @@ export default function FeedClient() {
                   </>
                 );
               })()}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      {/* unlock gauge */}
+      <div className="mx-auto w-full max-w-md md:max-w-3xl">
+        {(() => {
+          const rankNeed = 10;
+          const prefNeed = 20;
+          const rankCnt = rankUnlockCount;
+          const prefCnt = totalUniqueVotes;
+          const nextTarget =
+            rankCnt < rankNeed
+              ? { label: "ランキング解放", need: rankNeed, cnt: rankCnt, suffix: "（今日）" }
+              : prefCnt < prefNeed
+                ? { label: "好み分析解放", need: prefNeed, cnt: prefCnt, suffix: "（累計）" }
+                : null;
+          const pct = nextTarget ? Math.min(100, Math.round((nextTarget.cnt / nextTarget.need) * 100)) : 100;
+          const remain = nextTarget ? Math.max(0, nextTarget.need - nextTarget.cnt) : 0;
+          return (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/85 backdrop-blur">
+              <div className="text-sm font-semibold text-white">解放ゲージ</div>
+              {nextTarget ? (
+                <div className="mt-2 text-sm text-white/75">
+                  次: <span className="font-semibold text-white">{nextTarget.label}</span> {nextTarget.suffix}{" "}
+                  <span className="text-white/60">（あと {remain} 人）</span>
+                </div>
+              ) : (
+                <div className="mt-2 text-sm text-emerald-200">すべて解放済み！</div>
+              )}
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-gradient-to-r from-pink-400 via-purple-400 to-sky-400" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/70">
+                <span>
+                  ランキング: <span className="font-semibold text-white">{Math.min(rankNeed, rankCnt)}</span>/{rankNeed}（今日）
+                </span>
+                <span>
+                  好み分析: <span className="font-semibold text-white">{Math.min(prefNeed, prefCnt)}</span>/{prefNeed}（累計）
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* unlock modal */}
+      <AnimatePresence>
+        {unlockModal ? (
+          <motion.div
+            key={unlockModal.nonce}
+            className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setUnlockModal(null)}
+          >
+            <motion.div
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-neutral-950/90 p-6 text-white shadow-xl backdrop-blur"
+              initial={{ scale: 0.95, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pointer-events-none absolute inset-0 opacity-70">
+                {Array.from({ length: 18 }).map((_, i) => {
+                  const x = 10 + (i * 80) % 360;
+                  const y = 120 + (i % 6) * 18;
+                  const rot = (i % 2 ? 35 : -25) + i * 3;
+                  return (
+                    <motion.span
+                      key={i}
+                      className="absolute text-sm"
+                      style={{
+                        left: `${(x / 360) * 100}%`,
+                        top: `${(y / 220) * 100}%`,
+                        color:
+                          i % 3 === 0
+                            ? "rgba(236,72,153,0.95)"
+                            : i % 3 === 1
+                              ? "rgba(168,85,247,0.9)"
+                              : "rgba(59,130,246,0.9)",
+                        filter: "drop-shadow(0 0 14px rgba(236,72,153,0.18))",
+                      }}
+                      initial={{ opacity: 0, y: 12, rotate: rot, scale: 0.7 }}
+                      animate={{
+                        opacity: [0, 1, 0],
+                        y: [12, -18, -42],
+                        rotate: [rot, rot + 20, rot + 30],
+                        scale: [0.7, 1.05, 0.9],
+                      }}
+                      transition={{
+                        duration: 1.6 + (i % 5) * 0.1,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: (i % 6) * 0.08,
+                      }}
+                    >
+                      {i % 4 === 0 ? "✦" : "♥"}
+                    </motion.span>
+                  );
+                })}
+              </div>
+
+              <div className="relative">
+                <div className="text-sm font-semibold text-white/80">UNLOCK!</div>
+                <div className="mt-2 text-xl font-extrabold tracking-tight">{unlockModal.title}</div>
+                <div className="mt-2 text-sm text-white/75">{unlockModal.body}</div>
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
+                    onClick={() => setUnlockModal(null)}
+                  >
+                    閉じる
+                  </button>
+                  {unlockModal.kind === "rank" ? (
+                    <button
+                      type="button"
+                      className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
+                      onClick={() => router.push("/ranking")}
+                    >
+                      ランキングへ
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
+                      onClick={() => router.push("/mypage/preferences")}
+                    >
+                      好み分析へ
+                    </button>
+                  )}
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         ) : null}

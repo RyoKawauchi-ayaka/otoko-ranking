@@ -80,7 +80,7 @@ export default async function MyPage() {
               const rankNeed = 10;
               const todayUnique = myVotesTodayUnique;
               const rankPct = Math.min(100, Math.round((todayUnique / rankNeed) * 100));
-              const prefNeed = 100;
+              const prefNeed = 20;
               const prefTotal = myVotesTotalUnique;
               const prefPct = Math.min(100, Math.round((prefTotal / prefNeed) * 100));
               return (

@@ -38,7 +38,7 @@ export default async function PreferencesPage() {
 
   const voteRows = (votes ?? []) as VoteRow[];
   const uniqueTargets = new Set(voteRows.map((v) => v.target_id)).size;
-  const unlockThreshold = 100;
+  const unlockThreshold = 20;
   if (uniqueTargets < unlockThreshold) {
     const remain = unlockThreshold - uniqueTargets;
     return (
