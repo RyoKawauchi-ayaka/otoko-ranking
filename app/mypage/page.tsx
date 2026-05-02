@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireServerUser } from "@/lib/auth";
+import { isFemaleRankingPreferencesUnlocked } from "@/lib/female-unlock";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { tokyoDayStartIso } from "@/lib/tokyo";
+import { tokyoTodayYmd } from "@/lib/tokyo";
 
 export default async function MyPage() {
   const authUser = await requireServerUser();
@@ -12,6 +13,7 @@ export default async function MyPage() {
     { data: maleProfile },
     { data: myVotesTodayRows },
     { data: myVotesAllRows },
+    { count: maleProfileTotal },
   ] = await Promise.all([
     supabase.from("users").select("id,gender,role,is_paid_user").eq("id", authUser.id).maybeSingle(),
     supabase.from("male_profiles").select("id,nickname,age").eq("user_id", authUser.id).maybeSingle(),
@@ -19,12 +21,15 @@ export default async function MyPage() {
       .from("votes")
       .select("target_id")
       .eq("voter_id", authUser.id)
-      .gte("created_at", tokyoDayStartIso()),
+      .eq("vote_day", tokyoTodayYmd()),
     supabase.from("votes").select("target_id").eq("voter_id", authUser.id),
+    supabase.from("male_profiles").select("id", { count: "exact", head: true }),
   ]);
 
   const myVotesTodayUnique = new Set((myVotesTodayRows ?? []).map((v: any) => String(v.target_id))).size;
   const myVotesTotalUnique = new Set((myVotesAllRows ?? []).map((v: any) => String(v.target_id))).size;
+  const maleTotal = maleProfileTotal ?? 0;
+  const featuresUnlocked = isFemaleRankingPreferencesUnlocked(maleTotal, myVotesTotalUnique);
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-6">
@@ -77,57 +82,37 @@ export default async function MyPage() {
 
           <div className="mt-4 grid gap-3">
             {(() => {
-              const rankNeed = 10;
-              const todayUnique = myVotesTodayUnique;
-              const rankPct = Math.min(100, Math.round((todayUnique / rankNeed) * 100));
-              const prefNeed = 20;
+              const need = Math.max(1, maleTotal);
               const prefTotal = myVotesTotalUnique;
-              const prefPct = Math.min(100, Math.round((prefTotal / prefNeed) * 100));
+              const prefPct = maleTotal > 0 ? Math.min(100, Math.round((prefTotal / need) * 100)) : 0;
+              const remain = maleTotal > 0 ? Math.max(0, need - prefTotal) : 0;
               return (
-                <>
-                  <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-                      <span>🔒</span> ランキング（今日の評価で解放）
-                    </div>
-                    <div className="mt-2 text-xs text-neutral-600">
-                      {todayUnique >= rankNeed ? (
-                        <span className="font-medium text-emerald-700">解放済み</span>
-                      ) : (
-                        <>
-                          あと <strong>{rankNeed - todayUnique}</strong> 人（今日・ユニーク）
-                        </>
-                      )}
-                    </div>
-                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-200">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-pink-500 to-emerald-500"
-                        style={{ width: `${rankPct}%` }}
-                      />
-                    </div>
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
+                    <span>{featuresUnlocked ? "✓" : "🔒"}</span> ランキング・好み分析
                   </div>
-
-                  <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-                      <span>🔒</span> 好み分析（累計評価で解放）
-                    </div>
-                    <div className="mt-2 text-xs text-neutral-600">
-                      {prefTotal >= prefNeed ? (
-                        <span className="font-medium text-emerald-700">解放済み</span>
-                      ) : (
-                        <>
-                          累計 <strong>{prefTotal}</strong> / {prefNeed}{" "}
-                          <span className="text-neutral-500">（あと {prefNeed - prefTotal}）</span>
-                        </>
-                      )}
-                    </div>
+                  <div className="mt-2 text-xs text-neutral-600">
+                    {maleTotal === 0 ? (
+                      "評価対象の男性がまだいません。"
+                    ) : featuresUnlocked ? (
+                      <span className="font-medium text-emerald-700">すべての男性を評価済み — 利用可能です</span>
+                    ) : (
+                      <>
+                        累計ユニーク <strong>{prefTotal}</strong> / {need}{" "}
+                        <span className="text-neutral-500">（あと {remain} 人の男性を初評価）</span>
+                      </>
+                    )}
+                  </div>
+                  {maleTotal > 0 ? (
                     <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-200">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                        className="h-full rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500"
                         style={{ width: `${prefPct}%` }}
                       />
                     </div>
-                  </div>
-                </>
+                  ) : null}
+                  <div className="mt-2 text-xs text-neutral-500">本日のユニーク評価: {myVotesTodayUnique} 人</div>
+                </div>
               );
             })()}
           </div>

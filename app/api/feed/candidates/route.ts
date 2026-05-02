@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { tokyoDayStartIso } from "@/lib/tokyo";
+import { isFemaleRankingPreferencesUnlocked } from "@/lib/female-unlock";
+import { tokyoTodayYmd } from "@/lib/tokyo";
 import { publicErrorMessage } from "@/lib/safe-error";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET() {
   if (uErr) return json({ error: publicErrorMessage(uErr, "request failed") }, { status: 400 });
   if (userRow?.gender !== "female") return json({ error: "forbidden" }, { status: 403 });
 
-  const day = new Date(tokyoDayStartIso()).toISOString().slice(0, 10);
+  const day = tokyoTodayYmd();
 
   const [
     { data: allProfiles, error: pErr },
@@ -38,8 +39,7 @@ export async function GET() {
     { data: viewsToday, error: vErr },
   ] = await Promise.all([
     supabase.from("male_profiles").select("id"),
-    // 既に投票済みの男性を優先しない & 再投票 no-op を避けるため、累計で取得する
-    supabase.from("votes").select("target_id").eq("voter_id", userId),
+    supabase.from("votes").select("target_id,vote_day").eq("voter_id", userId),
     supabase.from("female_male_daily_views").select("profile_id,view_count").eq("viewer_id", userId).eq("day", day),
   ]);
 
@@ -48,16 +48,39 @@ export async function GET() {
   if (vErr) return json({ error: publicErrorMessage(vErr, "request failed") }, { status: 400 });
 
   const votedEver = new Set((allVotes ?? []).map((v: any) => String(v.target_id)));
+  const votedToday = new Set(
+    (allVotes ?? [])
+      .filter((v: any) => String(v.vote_day ?? "") === day)
+      .map((v: any) => String(v.target_id)),
+  );
   const viewMap = new Map<string, number>();
   for (const row of (viewsToday ?? []) as any[]) {
     viewMap.set(String(row.profile_id), Number(row.view_count ?? 0));
   }
 
   const idsAll = (allProfiles ?? []).map((x: any) => String(x.id));
-  if (!idsAll.length) return json({ profile_ids: [] });
-  // 原則「未評価のみ」をフィード候補にする（既評価は投票できず詰まるため）
-  const ids = idsAll.filter((id) => !votedEver.has(id));
-  if (!ids.length) return json({ profile_ids: [] });
+  const maleTotal = idsAll.length;
+  const uniqueVotedEver = votedEver.size;
+  const featuresUnlocked = isFemaleRankingPreferencesUnlocked(maleTotal, uniqueVotedEver);
+
+  const meta = {
+    male_total: maleTotal,
+    unique_voted_ever: uniqueVotedEver,
+    voted_today_unique: votedToday.size,
+    features_unlocked: featuresUnlocked,
+    exhausted_today: false,
+  };
+
+  if (!idsAll.length) return json({ profile_ids: [], meta });
+
+  // 当日まだ評価していない男性を候補にする（翌日は同じ男性に再評価可能）
+  const ids = idsAll.filter((id) => !votedToday.has(id));
+  if (!ids.length) {
+    return json({
+      profile_ids: [],
+      meta: { ...meta, exhausted_today: true },
+    });
+  }
   const pool = ids;
 
   const minGuarantee = Number(process.env.FEED_MIN_VIEWS_PER_PROFILE ?? "3");
@@ -67,10 +90,9 @@ export async function GET() {
   type Scored = { id: string; score: number; tie: number };
   const scored: Scored[] = pool.map((id, idx) => {
     const views = viewMap.get(id) ?? 0;
-    // 未評価（累計）を優先する
-    const unrated = votedEver.has(id) ? 0 : 1;
+    const neverRated = votedEver.has(id) ? 0 : 1;
     const underMin = views < minGuarantee ? 1 : 0;
-    const score = underMin * 1_000_000 + unrated * 100_000 - views * 1_000 + Math.random() * (randomFraction * 1000);
+    const score = underMin * 1_000_000 + neverRated * 100_000 - views * 1_000 + Math.random() * (randomFraction * 1000);
     return { id, score, tie: idx };
   });
 
@@ -84,5 +106,5 @@ export async function GET() {
     ordered.push(...tail);
   }
 
-  return json({ profile_ids: ordered });
+  return json({ profile_ids: ordered, meta });
 }

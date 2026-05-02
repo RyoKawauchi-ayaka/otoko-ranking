@@ -51,15 +51,19 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
 
   const mp = profile as MaleProfile;
 
-  const [{ data: viewerRow }, { data: myVote }] = await Promise.all([
+  const [{ data: viewerRow }, { data: myVotesHigh }] = await Promise.all([
     supabase.from("users").select("gender").eq("id", authUser.id).maybeSingle(),
-    supabase.from("votes").select("rating").eq("voter_id", authUser.id).eq("target_id", mp.id).maybeSingle(),
+    supabase
+      .from("votes")
+      .select("id")
+      .eq("voter_id", authUser.id)
+      .eq("target_id", mp.id)
+      .in("rating", ["good", "excellent"])
+      .limit(1),
   ]);
 
   const canSeePrivate =
-    viewerRow?.gender === "female" &&
-    (myVote as any)?.rating &&
-    ((myVote as any).rating === "good" || (myVote as any).rating === "excellent");
+    viewerRow?.gender === "female" && Array.isArray(myVotesHigh) && myVotesHigh.length > 0;
 
   const [{ data: photos }, { data: rankingRow }, { data: privateProfile }, { data: privatePhotos }] =
     await Promise.all([

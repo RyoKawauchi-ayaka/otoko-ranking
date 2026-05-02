@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { publicErrorMessage } from "@/lib/safe-error";
+import { tokyoTodayYmd } from "@/lib/tokyo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -176,16 +177,17 @@ export async function POST(req: Request) {
       ];
 
       // Insert votes + feature selections
+      const voteDay = tokyoTodayYmd();
       const voteRows = targetIds.map((tid, i) => ({
         voter_id: femaleUser.id,
         target_id: tid,
         rating: i % 5 === 0 ? "excellent" : i % 2 === 0 ? "good" : "normal",
+        vote_day: voteDay,
       }));
 
-      // upsert votes (ignore duplicates)
       const { data: vIns, error: votesErr } = await admin
         .from("votes")
-        .upsert(voteRows as any, { onConflict: "voter_id,target_id" })
+        .upsert(voteRows as any, { onConflict: "voter_id,target_id,vote_day" })
         .select("id,target_id");
       if (votesErr) throw new Error(`votes upsert failed: ${votesErr.message}`);
       insertedVotes = vIns ?? [];

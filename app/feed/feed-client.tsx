@@ -8,7 +8,8 @@ import { useSwipeable } from "react-swipeable";
 import { motion, AnimatePresence } from "framer-motion";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getProfilePhotoPublicUrl } from "@/lib/supabase/public-url";
-import { tokyoDayStartIso } from "@/lib/tokyo";
+import { isFemaleRankingPreferencesUnlocked } from "@/lib/female-unlock";
+import { tokyoTodayYmd } from "@/lib/tokyo";
 
 type FeatureTag = { id: string; slug: string; label_ja: string; category: string };
 
@@ -35,6 +36,14 @@ type PhotoRow = {
   order_index: number;
 };
 
+type FeedCandidatesMeta = {
+  male_total: number;
+  unique_voted_ever: number;
+  voted_today_unique: number;
+  features_unlocked: boolean;
+  exhausted_today: boolean;
+};
+
 export default function FeedClient() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const router = useRouter();
@@ -45,15 +54,15 @@ export default function FeedClient() {
 
   const [cards, setCards] = useState<RankingRow[]>([]);
   const [photosByProfile, setPhotosByProfile] = useState<Record<string, PhotoRow[]>>({});
-  const [votedTargetIds, setVotedTargetIds] = useState<Set<string>>(new Set());
+  const [allTimeVotedIds, setAllTimeVotedIds] = useState<Set<string>>(new Set());
+  const [todayVotedIds, setTodayVotedIds] = useState<Set<string>>(new Set());
   const [todayVotes, setTodayVotes] = useState(0);
-  const [rankUnlockCount, setRankUnlockCount] = useState(0);
   const [rankLockedPopupOpen, setRankLockedPopupOpen] = useState(false);
-  const [totalUniqueVotes, setTotalUniqueVotes] = useState(0);
+  const [maleProfileTotal, setMaleProfileTotal] = useState(0);
+  const [featureGatesUnlocked, setFeatureGatesUnlocked] = useState(false);
+  const [feedExhaustedToday, setFeedExhaustedToday] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
-  const [unlockModal, setUnlockModal] = useState<null | { title: string; body: string; kind: "rank" | "pref"; nonce: number }>(
-    null,
-  );
+  const [unlockModal, setUnlockModal] = useState<null | { title: string; body: string; nonce: number }>(null);
 
   const [cardIndex, setCardIndex] = useState(0);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -84,42 +93,76 @@ export default function FeedClient() {
         if (!user) throw new Error("unauthorized");
 
         const candRes = await fetch("/api/feed/candidates", { cache: "no-store" });
-        const candJson = (await candRes.json().catch(() => null)) as { profile_ids?: string[]; error?: string } | null;
+        const candJson = (await candRes.json().catch(() => null)) as
+          | { profile_ids?: string[]; meta?: Partial<FeedCandidatesMeta>; error?: string }
+          | null;
         if (!candRes.ok) throw new Error(candJson?.error ?? "候補の取得に失敗しました");
         const profileIds = (candJson?.profile_ids ?? []) as string[];
+        const meta = (candJson?.meta ?? {}) as Partial<FeedCandidatesMeta>;
+        const maleTotal = Number(meta.male_total ?? 0);
+        const exhaustedToday = !!meta.exhausted_today && maleTotal > 0;
+
+        const { data: votes, error: vErr } = await supabase
+          .from("votes")
+          .select("target_id,vote_day")
+          .eq("voter_id", user.id);
+
+        if (vErr) throw vErr;
+        const voteRows = (votes ?? []) as { target_id: string; vote_day: string }[];
+        const tokyoDay = tokyoTodayYmd();
+        const votedEver = new Set(voteRows.map((v) => String(v.target_id)));
+        const votedToday = new Set(voteRows.filter((v) => String(v.vote_day) === tokyoDay).map((v) => String(v.target_id)));
+
         if (!profileIds.length) {
-          throw new Error("評価できる男性がいません（全員評価済みの可能性があります）");
+          if (maleTotal === 0) {
+            throw new Error("評価できる男性がいません");
+          }
+          if (exhaustedToday) {
+            if (cancelled) return;
+            setCards([]);
+            setPhotosByProfile({});
+            setAllTimeVotedIds(votedEver);
+            setTodayVotedIds(votedToday);
+            setTodayVotes(votedToday.size);
+            setMaleProfileTotal(maleTotal);
+            const unlocked =
+              meta.features_unlocked ?? isFemaleRankingPreferencesUnlocked(maleTotal, votedEver.size);
+            setFeatureGatesUnlocked(unlocked);
+            setFeedExhaustedToday(true);
+            setMeId(user.id);
+            setCardIndex(0);
+            setPhotoIndex(0);
+            setLastVote(null);
+            setVoteFx(null);
+            setFeatureTags([]);
+            setFeaturePickerOpen(false);
+            setSelectedFeatureSlugs(new Set());
+            const { data: tags, error: tagErr } = await supabase
+              .from("vote_feature_tags")
+              .select("id,slug,label_ja,category")
+              .order("category", { ascending: true })
+              .order("label_ja", { ascending: true });
+            if (tagErr) throw tagErr;
+            setFeatureTags((tags ?? []) as FeatureTag[]);
+            return;
+          }
+          throw new Error("評価候補を取得できませんでした");
         }
 
-        const [{ data: votes, error: vErr }, { data: rankingRows, error: rErr }, { data: details, error: dErr }] =
-          await Promise.all([
-            supabase
-              .from("votes")
-              .select("target_id,created_at")
-              .eq("voter_id", user.id)
-              // UIの「再投票 no-op」を避けるため、累計で持つ
-              ,
-            supabase
-              .from("male_ranking")
-              .select("profile_id,nickname,age,prefecture,job,income_range,vote_count,bayes_score")
-              .in("profile_id", profileIds),
-            supabase.from("male_profiles").select("id,height,hobbies,appeal").in("id", profileIds),
-          ]);
+        const [{ data: rankingRows, error: rErr }, { data: details, error: dErr }] = await Promise.all([
+          supabase
+            .from("male_ranking")
+            .select("profile_id,nickname,age,prefecture,job,income_range,vote_count,bayes_score")
+            .in("profile_id", profileIds),
+          supabase.from("male_profiles").select("id,height,hobbies,appeal").in("id", profileIds),
+        ]);
 
         if (rErr) throw rErr;
-        if (vErr) throw vErr;
+        if (dErr) throw dErr;
         const rankingById = new Map<string, RankingRow>();
         for (const row of (rankingRows ?? []) as RankingRow[]) {
           rankingById.set(row.profile_id, row);
         }
-
-        const voteRows = (votes ?? []) as any[];
-        const voted = new Set<string>(voteRows.map((v: any) => String(v.target_id)));
-        const todayUnique = new Set(
-          voteRows
-            .filter((v: any) => typeof v?.created_at === "string" && v.created_at >= tokyoDayStartIso())
-            .map((v: any) => String(v.target_id)),
-        ).size;
 
         const detailById = new Map<string, { height: number | null; hobbies: string[] | null; appeal: string | null }>();
         for (const row of (details ?? []) as any[]) {
@@ -167,10 +210,14 @@ export default function FeedClient() {
         if (cancelled) return;
         setCards(merged);
         setPhotosByProfile(grouped);
-        setVotedTargetIds(voted);
-        setTodayVotes(todayUnique);
-        setRankUnlockCount(todayUnique);
-        setTotalUniqueVotes(voted.size);
+        setAllTimeVotedIds(votedEver);
+        setTodayVotedIds(votedToday);
+        setTodayVotes(votedToday.size);
+        setMaleProfileTotal(maleTotal);
+        setFeatureGatesUnlocked(
+          meta.features_unlocked ?? isFemaleRankingPreferencesUnlocked(maleTotal, votedEver.size),
+        );
+        setFeedExhaustedToday(false);
         setMeId(user.id);
         setCardIndex(0);
         setPhotoIndex(0);
@@ -200,8 +247,8 @@ export default function FeedClient() {
 
   const canGoPrevPhoto = photoIndex > 0;
   const canGoNextPhoto = photoIndex + 1 < currentPhotos.length;
-  const liked = votedTargetIds.has(current?.profile_id ?? "");
-  const votedThisCard = !!current && (liked || lastVote?.targetId === current.profile_id);
+  const likedToday = todayVotedIds.has(current?.profile_id ?? "");
+  const votedThisCard = !!current && (likedToday || lastVote?.targetId === current.profile_id);
 
   const currentPhotoUrls =
     supabase && currentPhotos.length
@@ -251,9 +298,10 @@ export default function FeedClient() {
   async function onVote(rating: "normal" | "good" | "excellent") {
     if (!current) return;
     if (voting) return;
-    if (votedTargetIds.has(current.profile_id)) return;
+    if (todayVotedIds.has(current.profile_id)) return;
     try {
       setVoting(true);
+      const wasNewAllTime = !allTimeVotedIds.has(current.profile_id);
       const res = await fetch("/api/vote", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -261,52 +309,40 @@ export default function FeedClient() {
       });
       const json = (await res.json().catch(() => null)) as { ok?: boolean; noop?: boolean; error?: string } | null;
       if (!res.ok) throw new Error(json?.error ?? "投票に失敗しました");
+      if (json?.noop) {
+        return;
+      }
 
       if (rating !== "normal") {
         setLikeBurst(true);
         setTimeout(() => setLikeBurst(false), 450);
       }
 
-      setVotedTargetIds((prev) => {
+      setAllTimeVotedIds((prev) => {
         const next = new Set(prev);
         next.add(current.profile_id);
         return next;
       });
-      if (!json?.noop) {
-        setTodayVotes((n) => n + 1);
-        setRankUnlockCount((n) => n + 1);
-        setTotalUniqueVotes((n) => n + 1);
+      setTodayVotedIds((prev) => {
+        const next = new Set(prev);
+        next.add(current.profile_id);
+        return next;
+      });
+      setTodayVotes((n) => n + 1);
 
-        // unlock popups (first time only; localStorage)
-        const uid = meId;
-        if (uid) {
-          const nextToday = rankUnlockCount + 1;
-          const nextTotal = totalUniqueVotes + 1;
-
-          if (nextToday === 10) {
-            const key = `unlock_shown_rank_${uid}_${tokyoDayStartIso().slice(0, 10)}`;
-            if (!localStorage.getItem(key)) {
-              localStorage.setItem(key, "1");
-              setUnlockModal({
-                kind: "rank",
-                nonce: Date.now(),
-                title: "ランキングが解放されました！",
-                body: "今日の評価が10人に到達しました。さっそくランキングをチェックしよう。",
-              });
-            }
-          }
-
-          if (nextTotal === 20) {
-            const key = `unlock_shown_pref_${uid}`;
-            if (!localStorage.getItem(key)) {
-              localStorage.setItem(key, "1");
-              setUnlockModal({
-                kind: "pref",
-                nonce: Date.now(),
-                title: "あなたの好み分析が利用可能になりました！",
-                body: "累計20人の評価に到達しました。あなたの傾向を見てみよう。",
-              });
-            }
+      const uid = meId;
+      if (uid && wasNewAllTime && maleProfileTotal > 0) {
+        const nextUnique = allTimeVotedIds.size + 1;
+        if (nextUnique >= maleProfileTotal) {
+          setFeatureGatesUnlocked(true);
+          const key = `female_unlock_features_modal_v1_${uid}`;
+          if (!localStorage.getItem(key)) {
+            localStorage.setItem(key, "1");
+            setUnlockModal({
+              nonce: Date.now(),
+              title: "🎉 機能が解放されました！",
+              body: "すべての男性を評価しました！\n「ランキング」と「好み分析」が利用可能になりました。",
+            });
           }
         }
       }
@@ -378,6 +414,58 @@ export default function FeedClient() {
     );
   }
 
+  if (feedExhaustedToday && !cards.length) {
+    const u = allTimeVotedIds.size;
+    const need = maleProfileTotal;
+    const doneAllEver = need > 0 && u >= need;
+    return (
+      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6 text-white">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+          <h1 className="text-lg font-semibold">男性評価</h1>
+          <p className="mt-4 text-sm text-white/85">
+            {doneAllEver ? (
+              <>
+                <span className="font-semibold text-emerald-200">すべての男性を評価しました！</span>
+                <br />
+                本日は全員に評価済みです。日付が変わると、同じ男性にも再度評価できます。
+              </>
+            ) : (
+              <>
+                本日分の評価候補がありません。引き続き他の男性を評価して、ランキングと好み分析の解放を目指してください。
+              </>
+            )}
+          </p>
+          <div className="mt-4 text-sm text-white/70">
+            累計ユニーク評価:{" "}
+            <span className="font-semibold text-white">
+              {u} / {need || "—"}
+            </span>
+          </div>
+          {featureGatesUnlocked ? (
+            <div className="mt-6 flex flex-col gap-2">
+              <Link
+                className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
+                href="/ranking"
+              >
+                ランキングを見る
+              </Link>
+              <Link
+                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-semibold text-white"
+                href="/mypage/preferences"
+              >
+                好み分析
+              </Link>
+            </div>
+          ) : (
+            <p className="mt-4 text-xs text-white/55">
+              解放まで: あと {Math.max(0, need - u)} 人の男性を初めて評価してください。
+            </p>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   if (!current) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-6">
@@ -400,21 +488,16 @@ export default function FeedClient() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-white">男性評価</h1>
         <div className="flex items-center gap-3">
-          {(() => {
-            const locked = rankUnlockCount < 10;
-            return (
-              <button
-                type="button"
-                className="text-sm underline text-white/80"
-                onClick={() => {
-                  if (locked) setRankLockedPopupOpen(true);
-                  else router.push("/ranking");
-                }}
-              >
-                ランキング{locked ? "（🔒）" : ""}
-              </button>
-            );
-          })()}
+          <button
+            type="button"
+            className="text-sm underline text-white/80"
+            onClick={() => {
+              if (!featureGatesUnlocked) setRankLockedPopupOpen(true);
+              else router.push("/ranking");
+            }}
+          >
+            ランキング{!featureGatesUnlocked ? "（🔒）" : ""}
+          </button>
         </div>
       </div>
 
@@ -436,21 +519,22 @@ export default function FeedClient() {
               onClick={(e) => e.stopPropagation()}
             >
               {(() => {
-                const need = 10;
-                const cnt = rankUnlockCount;
+                const need = Math.max(1, maleProfileTotal);
+                const cnt = allTimeVotedIds.size;
                 const remain = Math.max(0, need - cnt);
                 const pct = Math.min(100, Math.round((cnt / need) * 100));
                 return (
                   <>
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-lg">🔒</span>
-                      ランキングはロック中
+                      ランキング・好み分析はロック中
                     </div>
                     <div className="mt-2 text-sm text-white/75">
-                      今日、ユニークな男性を<strong className="text-white"> {need}人</strong>評価すると解放されます。
+                      登録されている全男性（<strong className="text-white">{need}人</strong>
+                      ）を、それぞれ<strong className="text-white"> 累計1回以上</strong>評価すると解放されます。
                     </div>
                     <div className="mt-3 text-sm text-white/90">
-                      進捗: <span className="font-semibold">{cnt}</span> / {need}{" "}
+                      進捗（ユニーク）: <span className="font-semibold">{cnt}</span> / {need}{" "}
                       <span className="text-white/60">（あと {remain} 人）</span>
                     </div>
                     <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
@@ -483,39 +567,36 @@ export default function FeedClient() {
       {/* unlock gauge */}
       <div className="mx-auto w-full max-w-md md:max-w-3xl">
         {(() => {
-          const rankNeed = 10;
-          const prefNeed = 20;
-          const rankCnt = rankUnlockCount;
-          const prefCnt = totalUniqueVotes;
-          const nextTarget =
-            rankCnt < rankNeed
-              ? { label: "ランキング解放", need: rankNeed, cnt: rankCnt, suffix: "（今日）" }
-              : prefCnt < prefNeed
-                ? { label: "好み分析解放", need: prefNeed, cnt: prefCnt, suffix: "（累計）" }
-                : null;
-          const pct = nextTarget ? Math.min(100, Math.round((nextTarget.cnt / nextTarget.need) * 100)) : 100;
-          const remain = nextTarget ? Math.max(0, nextTarget.need - nextTarget.cnt) : 0;
+          const need = Math.max(0, maleProfileTotal);
+          const cnt = allTimeVotedIds.size;
+          const pct = need > 0 ? Math.min(100, Math.round((cnt / need) * 100)) : 0;
+          const remain = need > 0 ? Math.max(0, need - cnt) : 0;
           return (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/85 backdrop-blur">
               <div className="text-sm font-semibold text-white">解放ゲージ</div>
-              {nextTarget ? (
+              {featureGatesUnlocked ? (
+                <div className="mt-2 text-sm font-medium text-emerald-200">
+                  すべての男性を評価しました！ランキング・好み分析が利用可能です。
+                </div>
+              ) : need > 0 ? (
                 <div className="mt-2 text-sm text-white/75">
-                  次: <span className="font-semibold text-white">{nextTarget.label}</span> {nextTarget.suffix}{" "}
-                  <span className="text-white/60">（あと {remain} 人）</span>
+                  ランキング・好み分析: ユニークな男性を{" "}
+                  <span className="font-semibold text-white">
+                    {cnt} / {need}
+                  </span>{" "}
+                  人評価（あと {remain} 人）
                 </div>
               ) : (
-                <div className="mt-2 text-sm text-emerald-200">すべて解放済み！</div>
+                <div className="mt-2 text-sm text-white/75">評価対象の男性がまだいません。</div>
               )}
               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-gradient-to-r from-pink-400 via-purple-400 to-sky-400" style={{ width: `${pct}%` }} />
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-pink-400 via-purple-400 to-sky-400"
+                  style={{ width: `${pct}%` }}
+                />
               </div>
-              <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/70">
-                <span>
-                  ランキング: <span className="font-semibold text-white">{Math.min(rankNeed, rankCnt)}</span>/{rankNeed}（今日）
-                </span>
-                <span>
-                  好み分析: <span className="font-semibold text-white">{Math.min(prefNeed, prefCnt)}</span>/{prefNeed}（累計）
-                </span>
+              <div className="mt-2 text-xs text-white/65">
+                本日のユニーク評価: <span className="font-semibold text-white">{todayVotes}</span> 人（同一男性は1日1回まで）
               </div>
             </div>
           );
@@ -584,16 +665,9 @@ export default function FeedClient() {
               <div className="relative">
                 <div className="text-sm font-semibold text-white/80">UNLOCK!</div>
                 <div className="mt-2 text-xl font-extrabold tracking-tight">{unlockModal.title}</div>
-                <div className="mt-2 text-sm text-white/75">{unlockModal.body}</div>
-                <div className="mt-5 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
-                    onClick={() => setUnlockModal(null)}
-                  >
-                    閉じる
-                  </button>
-                  {unlockModal.kind === "rank" ? (
+                <div className="mt-2 whitespace-pre-line text-sm text-white/75">{unlockModal.body}</div>
+                <div className="mt-5 grid gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
@@ -601,15 +675,21 @@ export default function FeedClient() {
                     >
                       ランキングへ
                     </button>
-                  ) : (
                     <button
                       type="button"
-                      className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
+                      className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
                       onClick={() => router.push("/mypage/preferences")}
                     >
                       好み分析へ
                     </button>
-                  )}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
+                    onClick={() => setUnlockModal(null)}
+                  >
+                    OK
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -685,10 +765,10 @@ export default function FeedClient() {
                   <div className="text-lg font-semibold">
                     {current.nickname} <span className="text-sm font-normal">{current.age}歳</span>
                   </div>
-                  {liked ? (
+                  {likedToday ? (
                     <div className="mt-1 inline-flex items-center gap-2 text-xs font-semibold text-white/90">
-                      <span className="rounded-full bg-white/15 px-2 py-1">評価済み</span>
-                      <span className="text-white/60">※ 既に投票済みのため再評価できません</span>
+                      <span className="rounded-full bg-white/15 px-2 py-1">本日評価済み</span>
+                      <span className="text-white/60">※ 同じ男性は1日1回まで。明日また評価できます。</span>
                     </div>
                   ) : null}
                   <div className="mt-1 flex flex-wrap gap-2 text-xs">
@@ -763,7 +843,7 @@ export default function FeedClient() {
           <button
             type="button"
             onClick={() => onVote("normal")}
-            disabled={liked || voting || votedThisCard}
+            disabled={likedToday || voting || votedThisCard}
             className={`rounded-xl border px-3 py-3 text-sm font-extrabold disabled:opacity-60 ${
               lastVote?.targetId === current.profile_id && lastVote.rating === "normal"
                 ? "border-neutral-900 bg-neutral-900 text-white"
@@ -775,7 +855,7 @@ export default function FeedClient() {
           <button
             type="button"
             onClick={() => onVote("good")}
-            disabled={liked || voting || votedThisCard}
+            disabled={likedToday || voting || votedThisCard}
             className={`rounded-xl px-3 py-3 text-sm font-extrabold disabled:opacity-60 ${
               lastVote?.targetId === current.profile_id && lastVote.rating === "good"
                 ? "bg-emerald-700 text-white ring-2 ring-white/70"
@@ -787,7 +867,7 @@ export default function FeedClient() {
           <button
             type="button"
             onClick={() => onVote("excellent")}
-            disabled={liked || voting || votedThisCard}
+            disabled={likedToday || voting || votedThisCard}
             className={`rounded-xl px-3 py-3 text-sm font-extrabold disabled:opacity-60 ${
               lastVote?.targetId === current.profile_id && lastVote.rating === "excellent"
                 ? "bg-pink-700 text-white ring-2 ring-white/70"

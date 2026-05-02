@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireServerUser } from "@/lib/auth";
+import { isFemaleRankingPreferencesUnlocked } from "@/lib/female-unlock";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type VoteRow = { id: string; target_id: string; rating: "normal" | "good" | "excellent" | null };
@@ -16,10 +17,11 @@ export default async function PreferencesPage() {
   const user = await requireServerUser();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: userRow }, { data: votes }, { data: tags }] = await Promise.all([
+  const [{ data: userRow }, { data: votes }, { data: tags }, { count: maleTotal }] = await Promise.all([
     supabase.from("users").select("gender").eq("id", user.id).maybeSingle(),
     supabase.from("votes").select("id,target_id,rating").eq("voter_id", user.id),
     supabase.from("vote_feature_tags").select("id,slug,label_ja,category"),
+    supabase.from("male_profiles").select("id", { count: "exact", head: true }),
   ]);
 
   if (userRow?.gender !== "female") {
@@ -38,9 +40,11 @@ export default async function PreferencesPage() {
 
   const voteRows = (votes ?? []) as VoteRow[];
   const uniqueTargets = new Set(voteRows.map((v) => v.target_id)).size;
-  const unlockThreshold = 20;
-  if (uniqueTargets < unlockThreshold) {
-    const remain = unlockThreshold - uniqueTargets;
+  const maleProfileTotal = maleTotal ?? 0;
+  const unlockThreshold = maleProfileTotal;
+  const unlocked = isFemaleRankingPreferencesUnlocked(maleProfileTotal, uniqueTargets);
+  if (maleProfileTotal > 0 && !unlocked) {
+    const remain = Math.max(0, unlockThreshold - uniqueTargets);
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-6">
         <div className="flex items-center justify-between">
@@ -57,10 +61,11 @@ export default async function PreferencesPage() {
               好み分析はロック中
             </div>
             <div className="mt-2 text-sm text-white/75">
-              累計でユニークな男性を<strong className="text-white"> {unlockThreshold}人</strong>評価すると解放されます。
+              登録されている全男性（<strong className="text-white">{maleProfileTotal}人</strong>）を、それぞれ
+              <strong className="text-white"> 累計1回以上</strong>評価すると解放されます。
             </div>
             <div className="mt-3 text-sm text-white/90">
-              進捗: <span className="font-semibold">{uniqueTargets}</span> / {unlockThreshold}{" "}
+              進捗（ユニーク）: <span className="font-semibold">{uniqueTargets}</span> / {unlockThreshold}{" "}
               <span className="text-white/60">（あと {remain} 人）</span>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">

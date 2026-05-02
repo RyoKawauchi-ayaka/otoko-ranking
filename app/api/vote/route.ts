@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicErrorMessage } from "@/lib/safe-error";
+import { tokyoTodayYmd } from "@/lib/tokyo";
 import { publicVoteError } from "@/lib/vote-error";
 
 function inferTagSlugsFromMaleProfile(m: any): string[] {
@@ -41,13 +42,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid rating" }, { status: 400 });
   }
 
-  // 既に投票済みの場合、cast_vote は no-op で成功になり UI が進捗を誤カウントしうるため、
-  // API 側で事前に検知して明示的に返す。
+  // 当日・同一対象は cast_vote が no-op のため、事前に検知して明示的に返す。
+  const today = tokyoTodayYmd();
   const { data: existingVote, error: exErr } = await supabase
     .from("votes")
     .select("id")
     .eq("voter_id", userRes.user.id)
     .eq("target_id", targetId)
+    .eq("vote_day", today)
     .maybeSingle();
   if (exErr) {
     const pe = publicVoteError(exErr);
@@ -73,7 +75,15 @@ export async function POST(req: Request) {
   // Auto-collect features (no extra UI). Best-effort; failures shouldn't block vote.
   try {
     const [{ data: voteRow }, { data: male }, { data: tags }] = await Promise.all([
-      supabase.from("votes").select("id").eq("voter_id", userRes.user.id).eq("target_id", targetId).maybeSingle(),
+      supabase
+        .from("votes")
+        .select("id")
+        .eq("voter_id", userRes.user.id)
+        .eq("target_id", targetId)
+        .eq("vote_day", today)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       supabase.from("male_profiles").select("height,hobbies,appeal").eq("id", targetId).maybeSingle(),
       supabase.from("vote_feature_tags").select("id,slug"),
     ]);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicErrorMessage } from "@/lib/safe-error";
+import { tokyoTodayYmd } from "@/lib/tokyo";
 
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
@@ -13,12 +14,15 @@ export async function POST(req: Request) {
   if (!targetId) return NextResponse.json({ error: "targetId required" }, { status: 400 });
   if (!tagSlugs.length) return NextResponse.json({ ok: true });
 
-  // find today's vote id for (me, target)
+  const today = tokyoTodayYmd();
   const { data: voteRow, error: vErr } = await supabase
     .from("votes")
     .select("id")
     .eq("voter_id", userRes.user.id)
     .eq("target_id", targetId)
+    .eq("vote_day", today)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (vErr) return NextResponse.json({ error: publicErrorMessage(vErr, "request failed") }, { status: 400 });
   if (!voteRow?.id) return NextResponse.json({ error: "vote not found" }, { status: 404 });
@@ -31,7 +35,7 @@ export async function POST(req: Request) {
   const rows = (tags ?? []).map((t: any) => ({ vote_id: voteRow.id, tag_id: t.id }));
   if (!rows.length) return NextResponse.json({ ok: true });
 
-  const { error: insErr } = await supabase.from("vote_feature_selections").insert(rows);
+  const { error: insErr } = await supabase.from("vote_feature_selections").upsert(rows, { onConflict: "vote_id,tag_id" });
   if (insErr) return NextResponse.json({ error: publicErrorMessage(insErr, "request failed") }, { status: 400 });
 
   return NextResponse.json({ ok: true });

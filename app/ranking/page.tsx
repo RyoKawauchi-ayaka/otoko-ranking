@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { requireServerUser } from "@/lib/auth";
+import { isFemaleRankingPreferencesUnlocked } from "@/lib/female-unlock";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { tokyoDayStartIso } from "@/lib/tokyo";
 
 type RankingRow = {
   profile_id: string;
@@ -25,19 +25,17 @@ export default async function RankingPage() {
   const authUser = await requireServerUser();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: userRow }, { data: myVotes, error: vErr }] = await Promise.all([
+  const [{ data: userRow }, { data: myVotes, error: vErr }, { count: maleTotal, error: cErr }] = await Promise.all([
     supabase.from("users").select("gender").eq("id", authUser.id).maybeSingle(),
-    supabase
-      .from("votes")
-      .select("target_id,created_at")
-      .eq("voter_id", authUser.id)
-      .gte("created_at", tokyoDayStartIso()),
+    supabase.from("votes").select("target_id").eq("voter_id", authUser.id),
+    supabase.from("male_profiles").select("id", { count: "exact", head: true }),
   ]);
 
-  if (vErr) {
+  if (vErr || cErr) {
+    const msg = vErr?.message ?? cErr?.message ?? "error";
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-6">
-        <p className="text-sm text-red-600">{vErr.message}</p>
+        <p className="text-sm text-red-600">{msg}</p>
         <Link className="text-sm underline" href="/feed">
           フィードへ戻る
         </Link>
@@ -46,11 +44,13 @@ export default async function RankingPage() {
   }
 
   const uniqueRatedCount = new Set((myVotes ?? []).map((v: any) => String(v.target_id))).size;
-  const unlockThreshold = 10;
+  const maleProfileTotal = maleTotal ?? 0;
+  const unlocked = isFemaleRankingPreferencesUnlocked(maleProfileTotal, uniqueRatedCount);
 
-  if (userRow?.gender === "female" && uniqueRatedCount < unlockThreshold) {
-    const remaining = unlockThreshold - uniqueRatedCount;
-    const pct = Math.min(100, Math.round((uniqueRatedCount / unlockThreshold) * 100));
+  if (userRow?.gender === "female" && maleProfileTotal > 0 && !unlocked) {
+    const need = maleProfileTotal;
+    const remaining = Math.max(0, need - uniqueRatedCount);
+    const pct = Math.min(100, Math.round((uniqueRatedCount / need) * 100));
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-6">
         <div className="flex items-center justify-between">
@@ -68,10 +68,11 @@ export default async function RankingPage() {
               ランキングはロック中
             </div>
             <div className="mt-2 text-sm text-white/75">
-              今日、ユニークな男性を<strong className="text-white"> {unlockThreshold}人</strong>評価すると解放されます。
+              登録されている全男性（<strong className="text-white">{maleProfileTotal}人</strong>）を、それぞれ
+              <strong className="text-white"> 累計1回以上</strong>評価すると解放されます。
             </div>
             <div className="mt-3 text-sm text-white/90">
-              進捗: <span className="font-semibold">{uniqueRatedCount}</span> / {unlockThreshold}{" "}
+              進捗（ユニーク）: <span className="font-semibold">{uniqueRatedCount}</span> / {need}{" "}
               <span className="text-white/60">（あと {remaining} 人）</span>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">

@@ -1,3 +1,13 @@
+/** Asia/Tokyo の暦日 YYYY-MM-DD */
+export function tokyoTodayYmd(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 export function tokyoDayStartIso(d = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
