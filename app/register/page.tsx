@@ -25,8 +25,9 @@ export default function RegisterPage() {
     try {
       if (!supabase) throw new Error("Supabase設定が未完了です（.env.local を確認してください）");
       const origin = window.location.origin;
+      const emailNorm = email.trim();
       const { data, error: e } = await supabase.auth.signUp({
-        email,
+        email: emailNorm,
         password,
         options: {
           emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,

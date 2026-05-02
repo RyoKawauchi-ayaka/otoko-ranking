@@ -19,7 +19,7 @@ export default function ForgotPasswordPage() {
     try {
       if (!supabase) throw new Error("Supabase設定が未完了です。");
       const origin = window.location.origin;
-      const { error: e } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error: e } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${origin}/reset-password`,
       });
       if (e) throw e;

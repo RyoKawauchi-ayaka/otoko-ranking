@@ -24,7 +24,8 @@ export default function LoginClient() {
     setCanResendConfirm(false);
     try {
       if (!supabase) throw new Error("Supabase設定が未完了です（.env.local を確認してください）");
-      const { error: e } = await supabase.auth.signInWithPassword({ email, password });
+      const emailNorm = email.trim();
+      const { error: e } = await supabase.auth.signInWithPassword({ email: emailNorm, password });
       if (e) throw e;
       router.replace(next);
     } catch (e) {
@@ -42,7 +43,7 @@ export default function LoginClient() {
     setError(null);
     try {
       if (!supabase) throw new Error("Supabase設定が未完了です。");
-      const { error: e } = await supabase.auth.resend({ type: "signup", email });
+      const { error: e } = await supabase.auth.resend({ type: "signup", email: email.trim() });
       if (e) throw e;
       setError("確認メールを再送しました。受信トレイをご確認ください。");
     } catch (e) {
