@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isFemaleRankingPreferencesUnlocked } from "@/lib/female-unlock";
 import { tokyoTodayYmd } from "@/lib/tokyo";
-import { publicErrorMessage } from "@/lib/safe-error";
+import { publicSupabaseQueryError } from "@/lib/safe-error";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export async function GET() {
 
   const userId = userRes.user.id;
   const { data: userRow, error: uErr } = await supabase.from("users").select("gender").eq("id", userId).maybeSingle();
-  if (uErr) return json({ error: publicErrorMessage(uErr, "request failed") }, { status: 400 });
+  if (uErr) return json({ error: publicSupabaseQueryError(uErr) }, { status: 400 });
   if (userRow?.gender !== "female") return json({ error: "forbidden" }, { status: 403 });
 
   const day = tokyoTodayYmd();
@@ -43,9 +43,9 @@ export async function GET() {
     supabase.from("female_male_daily_views").select("profile_id,view_count").eq("viewer_id", userId).eq("day", day),
   ]);
 
-  if (pErr) return json({ error: publicErrorMessage(pErr, "request failed") }, { status: 400 });
-  if (avErr) return json({ error: publicErrorMessage(avErr, "request failed") }, { status: 400 });
-  if (vErr) return json({ error: publicErrorMessage(vErr, "request failed") }, { status: 400 });
+  if (pErr) return json({ error: publicSupabaseQueryError(pErr) }, { status: 400 });
+  if (avErr) return json({ error: publicSupabaseQueryError(avErr) }, { status: 400 });
+  if (vErr) return json({ error: publicSupabaseQueryError(vErr) }, { status: 400 });
 
   const votedEver = new Set((allVotes ?? []).map((v: any) => String(v.target_id)));
   const votedToday = new Set(
