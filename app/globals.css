@@ -158,4 +158,50 @@ button {
     0 0 80px rgba(59, 130, 246, 0.08);
 }
 
+/* Landing: 軽量フロートハート（CSSのみ） */
+@keyframes landing-heart-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.9);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.22;
+  }
+  100% {
+    transform: translate3d(var(--hx, 0px), -110px, 0) scale(1);
+    opacity: 0;
+  }
+}
+
+.landing-float-hearts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.landing-float-hearts span {
+  position: absolute;
+  bottom: -8px;
+  font-size: 10px;
+  color: rgba(236, 72, 153, 0.35);
+  animation: landing-heart-drift 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-float-hearts span {
+    animation: none;
+    opacity: 0.08;
+  }
+}
+
+@keyframes landing-ripple {
+  to {
+    transform: translate(-50%, -50%) scale(18);
+    opacity: 0;
+  }
+}
+
 

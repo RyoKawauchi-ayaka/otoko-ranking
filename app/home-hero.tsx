@@ -2,192 +2,244 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
-import PodiumIllustration from "./podium-illustration";
-import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useCallback, useState } from "react";
 
-export default function HomeHero({
-  top3,
+type RankRow = {
+  rank: number;
+  profile_id: string;
+  nickname: string;
+  score: number;
+  n?: number;
+  photo_url: string | null;
+};
+
+function PodiumAvatar({
+  photoUrl,
+  label,
+  sizeClass,
+  ringClass,
 }: {
-  top3: {
-    rank: number;
-    profile_id: string;
-    nickname: string;
-    score: number;
-    n?: number;
-    photo_url: string | null;
-  }[];
+  photoUrl: string | null;
+  label: string;
+  sizeClass: string;
+  ringClass?: string;
 }) {
-  const [registerBurst, setRegisterBurst] = useState<null | number>(null);
-  const [registerParticles, setRegisterParticles] = useState<null | { id: number; x: number; y: number }>(null);
-
   return (
-    <motion.main
-      className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 pb-10 pt-0"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
+    <div
+      className={`relative shrink-0 overflow-hidden rounded-full border-2 border-white/50 bg-black/40 shadow-[0_0_18px_rgba(236,72,153,0.35),inset_0_0_12px_rgba(255,255,255,0.08)] ${sizeClass} ${ringClass ?? ""}`}
     >
-      <div className="neon-card relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_100px_rgba(236,72,153,0.10)] backdrop-blur md:p-10">
-        {/* NOTE: 余白発生を避けるため、負のoffsetを使わず画面内に収める */}
-        <div className="pointer-events-none absolute left-6 top-6 h-44 w-44 rounded-full bg-pink-500/20 blur-3xl md:h-56 md:w-56" />
-        <div className="pointer-events-none absolute right-6 top-6 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl md:h-56 md:w-56" />
-        <div className="pointer-events-none absolute bottom-6 left-1/3 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl md:h-56 md:w-56" />
-
-        <div className="grid gap-6 md:grid-cols-2 md:items-center">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55 }}
-          >
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              投票でランキングが動く
-            </div>
-
-            <h1 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
-              <span className="neon-title inline-block">表彰台に立つのは誰？</span>
-              <br />
-              <motion.span
-                className="inline-block text-white"
-                animate={{ y: [0, -2, 0] }}
-                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                投票で“モテ”を可視化。
-              </motion.span>
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-white/75 md:text-base">
-              男性はプロフィールを公開。女性はフィードで投票。
-              ランキングがリアルタイムに変化する“遊べる”投票アプリです。
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.65, delay: 0.05, ease: "easeOut" }}
-            className="relative rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_0_60px_rgba(168,85,247,0.18)]"
-          >
-            <motion.div
-              className="pointer-events-none absolute inset-0 rounded-2xl"
-              animate={{ boxShadow: ["0 0 0 rgba(0,0,0,0)", "0 0 40px rgba(236,72,153,0.16)", "0 0 0 rgba(0,0,0,0)"] }}
-              transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <PodiumIllustration top3={top3} />
-          </motion.div>
+      {photoUrl ? (
+        <Image src={photoUrl} alt={label} fill className="object-cover" sizes="96px" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-white/15 to-white/5 text-[10px] font-medium text-white/50">
+          ?
         </div>
-
-        <motion.div
-          className="mt-6 flex flex-wrap gap-3"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.08 }}
-        >
-          {/* Login: gentle hover float + sheen */}
-          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
-            <Link
-              className="group relative inline-flex overflow-hidden rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-sm"
-              href="/login"
-            >
-              <span className="relative z-10">ログイン</span>
-              {/* sheen */}
-              <span className="pointer-events-none absolute inset-0">
-                <motion.span
-                  className="absolute -left-1/2 top-0 h-full w-1/2 bg-gradient-to-r from-transparent via-white/55 to-transparent opacity-0 group-hover:opacity-100"
-                  animate={{ x: ["0%", "220%"] }}
-                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-                />
-              </span>
-            </Link>
-          </motion.div>
-
-          {/* Register: click burst */}
-          <div className="relative">
-            <Link
-              className="relative inline-flex overflow-hidden rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
-              href="/register"
-              onPointerDown={(e) => {
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                setRegisterBurst(Date.now());
-                setRegisterParticles({ id: Date.now(), x: e.clientX - rect.left, y: e.clientY - rect.top });
-                setTimeout(() => setRegisterBurst(null), 450);
-                setTimeout(() => setRegisterParticles(null), 650);
-              }}
-            >
-              新規登録
-            </Link>
-            <AnimatePresence>
-              {registerBurst ? (
-                <motion.span
-                  key={registerBurst}
-                  className="pointer-events-none absolute left-1/2 top-1/2 block h-2 w-2"
-                  initial={{ opacity: 0.9, scale: 0.2, x: "-50%", y: "-50%" }}
-                  animate={{ opacity: 0, scale: 16 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.45, ease: "easeOut" }}
-                  style={{
-                    background:
-                      "radial-gradient(circle, rgba(236,72,153,0.45), rgba(59,130,246,0.18) 45%, transparent 70%)",
-                    filter: "blur(0.2px)",
-                  }}
-                />
-              ) : null}
-            </AnimatePresence>
-            <AnimatePresence>
-              {registerParticles ? (
-                <motion.div
-                  key={registerParticles.id}
-                  className="pointer-events-none absolute inset-0"
-                  initial={{ opacity: 1 }}
-                  animate={{ opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.65 }}
-                >
-                  {Array.from({ length: 7 }).map((_, i) => {
-                    const a = (Math.PI * 2 * i) / 7;
-                    const dx = Math.cos(a) * (18 + i * 2);
-                    const dy = Math.sin(a) * (18 + i * 2);
-                    return (
-                      <motion.span
-                        key={i}
-                        className="absolute text-[12px]"
-                        style={{
-                          left: registerParticles.x,
-                          top: registerParticles.y,
-                          color: i % 2 ? "rgba(236,72,153,0.9)" : "rgba(59,130,246,0.85)",
-                          filter: "drop-shadow(0 0 10px rgba(236,72,153,0.25))",
-                        }}
-                        initial={{ x: 0, y: 0, scale: 0.7, opacity: 0.95 }}
-                        animate={{ x: dx, y: dy, scale: 1.15, opacity: 0 }}
-                        transition={{ duration: 0.6, ease: "easeOut" }}
-                      >
-                        ♥
-                      </motion.span>
-                    );
-                  })}
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
-
-          {/* トップからランキング導線は出さない */}
-        </motion.div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-3">
-        {[
-          { title: "スワイプで快適", body: "左右で写真、上で次のユーザー。テンポよく見られます。" },
-          { title: "1日N票制限", body: "投票は日次制限つき。熱量の“質”を保ちます。" },
-          { title: "通報・管理", body: "不適切なユーザーは通報、管理画面で対応できます。" },
-        ].map((x) => (
-          <div key={x.title} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/80 backdrop-blur">
-            <div className="text-sm font-semibold text-white">{x.title}</div>
-            <div className="mt-1 text-sm leading-relaxed text-white/70">{x.body}</div>
-          </div>
-        ))}
-      </div>
-    </motion.main>
+      )}
+    </div>
   );
 }
 
+function CtaPrimary() {
+  const [ripple, setRipple] = useState<null | { x: number; y: number; id: number }>(null);
+
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLAnchorElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setRipple({ x: e.clientX - r.left, y: e.clientY - r.top, id: Date.now() });
+    window.setTimeout(() => setRipple(null), 550);
+  }, []);
+
+  return (
+    <motion.div
+      className="relative"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 420, damping: 18 }}
+    >
+      <Link
+        href="/register"
+        onPointerDown={onPointerDown}
+        className="relative flex min-h-[48px] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-400 px-6 py-3 text-center text-sm font-bold text-white shadow-[0_0_28px_rgba(236,72,153,0.55)] transition-[background,box-shadow] duration-300 hover:bg-gradient-to-r hover:from-pink-400 hover:via-rose-500 hover:to-amber-400 hover:shadow-[0_0_40px_rgba(255,120,200,0.65)] md:min-w-[220px]"
+      >
+        <span className="relative z-10 drop-shadow-sm">アカウントを作成する 💖</span>
+        {ripple ? (
+          <span
+            key={ripple.id}
+            className="pointer-events-none absolute rounded-full bg-white/35"
+            style={{
+              left: ripple.x,
+              top: ripple.y,
+              width: 12,
+              height: 12,
+              transform: "translate(-50%, -50%)",
+              animation: "landing-ripple 0.55s ease-out forwards",
+            }}
+          />
+        ) : null}
+      </Link>
+    </motion.div>
+  );
+}
+
+function CtaSecondary() {
+  return (
+    <motion.div
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 420, damping: 18 }}
+    >
+      <Link
+        href="/login"
+        className="flex min-h-[48px] min-w-[120px] items-center justify-center rounded-2xl border border-white/35 bg-black/45 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(59,130,246,0.2)] backdrop-blur-sm transition-[background,box-shadow,border-color] duration-300 hover:border-cyan-300/50 hover:bg-black/55 hover:shadow-[0_0_28px_rgba(34,211,238,0.25)]"
+      >
+        ログイン
+      </Link>
+    </motion.div>
+  );
+}
+
+export default function HomeHero({ top3, more }: { top3: RankRow[]; more: RankRow[] }) {
+  const reduceMotion = useReducedMotion();
+  const first = top3[0];
+  const second = top3[1];
+  const third = top3[2];
+
+  const heartSlots = reduceMotion ? [] : [12, 28, 44, 58, 72, 86];
+
+  return (
+    <>
+      <motion.main
+        className="mx-auto w-full max-w-6xl px-4 pb-10 pt-4 md:px-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+      >
+        <div className="relative mx-auto w-full overflow-hidden rounded-[28px] border border-pink-400/35 shadow-[0_0_50px_rgba(236,72,153,0.18),0_0_80px_rgba(99,102,241,0.12)]">
+          <div className="relative aspect-[9/15] w-full md:aspect-[16/10] md:max-h-[min(88vh,820px)]">
+            <Image
+              src="/landing-hero.png"
+              alt="男ランキング — 投票でモテを可視化"
+              fill
+              priority
+              className="object-cover object-[center_0%] md:object-[center_12%]"
+              sizes="(max-width: 768px) 100vw, min(1200px, 100vw)"
+            />
+
+            {!reduceMotion ? (
+              <div className="landing-float-hearts" aria-hidden>
+                {heartSlots.map((left, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      left: `${left}%`,
+                      animationDelay: `${i * 1.1}s`,
+                      ["--hx" as string]: `${(i % 3) * 8 - 8}px`,
+                    }}
+                  >
+                    ♥
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {/* ランキング顔: 右側表彰台エリア（%はモックに合わせて調整） */}
+            <div
+              className="pointer-events-none absolute inset-y-[7%] right-0 w-[58%] max-w-[min(52vw,420px)] md:inset-y-[5%] md:right-[1%] md:w-[48%]"
+              aria-hidden
+            >
+              {second ? (
+                <div className="absolute left-[4%] top-[34%] md:left-[10%] md:top-[32%]">
+                  <PodiumAvatar
+                    photoUrl={second.photo_url}
+                    label={second.nickname}
+                    sizeClass="h-[13vw] w-[13vw] max-h-[72px] max-w-[72px] md:h-16 md:w-16"
+                    ringClass="ring-2 ring-cyan-300/30"
+                  />
+                </div>
+              ) : null}
+              {first ? (
+                <div className="absolute left-1/2 top-[16%] -translate-x-1/2 md:top-[14%]">
+                  <PodiumAvatar
+                    photoUrl={first.photo_url}
+                    label={first.nickname}
+                    sizeClass="h-[15vw] w-[15vw] max-h-[84px] max-w-[84px] md:h-[4.5rem] md:w-[4.5rem]"
+                    ringClass="ring-2 ring-amber-300/50"
+                  />
+                </div>
+              ) : null}
+              {third ? (
+                <div className="absolute right-[5%] top-[38%] md:right-[10%] md:top-[36%]">
+                  <PodiumAvatar
+                    photoUrl={third.photo_url}
+                    label={third.nickname}
+                    sizeClass="h-[12vw] w-[12vw] max-h-[64px] max-w-[64px] md:h-14 md:w-14"
+                    ringClass="ring-2 ring-orange-300/35"
+                  />
+                </div>
+              ) : null}
+
+              {more.length ? (
+                <div className="absolute bottom-[18%] left-1/2 flex max-w-full -translate-x-1/2 gap-1.5 px-1 md:bottom-[16%] md:gap-2">
+                  {more.slice(0, 6).map((m) => (
+                    <div
+                      key={m.profile_id}
+                      className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/35 shadow-[0_0_10px_rgba(236,72,153,0.25)] md:h-9 md:w-9"
+                    >
+                      {m.photo_url ? (
+                        <Image src={m.photo_url} alt="" fill className="object-cover" sizes="36px" />
+                      ) : (
+                        <div className="h-full w-full bg-white/10" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* CTA: 画像上に重ねる（SPは下寄せ、md+は左エリア） */}
+            <div className="absolute bottom-[6%] left-1/2 z-10 flex w-[92%] max-w-md -translate-x-1/2 flex-col items-stretch gap-3 sm:bottom-[7%] md:bottom-auto md:left-[5%] md:top-[54%] md:w-auto md:translate-x-0 md:flex-row md:items-start md:gap-4 lg:top-[52%]">
+              <CtaPrimary />
+              <CtaSecondary />
+            </div>
+          </div>
+        </div>
+
+        {/* 分析導線（コードでガラスカード — 画像内テキストの補完・クリック可能） */}
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <Link
+            href="/mypage/male-analytics"
+            className="group rounded-2xl border border-white/12 bg-white/5 p-4 shadow-[0_0_40px_rgba(59,130,246,0.08)] backdrop-blur transition hover:border-cyan-400/30 hover:bg-white/[0.07]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500/40 to-cyan-500/30 text-lg shadow-[0_0_20px_rgba(99,102,241,0.35)]">
+                📊
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">男性のモテ分析 ✨</div>
+                <p className="mt-1 text-xs leading-relaxed text-white/65 md:text-sm">
+                  あなたにいいねしてくれる女性の傾向を集計。強みやトレンドをグラフで把握できます。
+                </p>
+              </div>
+            </div>
+          </Link>
+          <Link
+            href="/mypage/preferences"
+            className="group rounded-2xl border border-white/12 bg-white/5 p-4 shadow-[0_0_40px_rgba(236,72,153,0.08)] backdrop-blur transition hover:border-pink-400/35 hover:bg-white/[0.07]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-pink-500/45 to-fuchsia-600/30 text-lg shadow-[0_0_20px_rgba(236,72,153,0.35)]">
+                💕
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">女性の好み分析 💕</div>
+                <p className="mt-1 text-xs leading-relaxed text-white/65 md:text-sm">
+                  投票データから、あなたが惹かれる男性のタイプ傾向を可視化。意外な発見があるかも。
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </motion.main>
+    </>
+  );
+}
