@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -62,6 +63,9 @@ export default function FeedClient() {
   const [featureGatesUnlocked, setFeatureGatesUnlocked] = useState(false);
   const [feedExhaustedToday, setFeedExhaustedToday] = useState(false);
   const [unlockModal, setUnlockModal] = useState<null | { title: string; body: string; nonce: number }>(null);
+  /** 投票直後にクライアントの male_total とズレても Next でサーバー再判定する */
+  const pendingUnlockAfterVoteRef = useRef(false);
+  const [unlockPortalRoot, setUnlockPortalRoot] = useState<HTMLElement | null>(null);
 
   const [cardIndex, setCardIndex] = useState(0);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -75,6 +79,10 @@ export default function FeedClient() {
   const [selectedFeatureSlugs, setSelectedFeatureSlugs] = useState<Set<string>>(new Set());
   const [savingFeatures, setSavingFeatures] = useState(false);
   const lastImpressionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setUnlockPortalRoot(typeof document !== "undefined" ? document.body : null);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,17 +295,44 @@ export default function FeedClient() {
     if (uid) localStorage.setItem(`female_unlock_features_modal_v1_${uid}`, "1");
   }
 
-  /** 最後のカードで Next したときなど。モーダルは DOM 最前面に出すためここで開く。 */
+  /** Next 押下時: DB の男性総数とユニーク評価数で判定（クライアント state / meta のズレを排除） */
   async function tryShowFemaleUnlockModal() {
-    if (!supabase || maleProfileTotal <= 0) return;
-    const uniqueCount = allTimeVotedIds.size;
-    if (uniqueCount < maleProfileTotal) return;
-    const { data } = await supabase.auth.getUser();
-    const uid = data.user?.id;
+    if (!supabase) return;
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
     if (!uid) return;
     const key = `female_unlock_features_modal_v1_${uid}`;
     if (localStorage.getItem(key)) return;
+
+    const hadPending = pendingUnlockAfterVoteRef.current;
+    pendingUnlockAfterVoteRef.current = false;
+
+    const [{ count: maleCnt, error: cErr }, { data: voteRows, error: vErr }] = await Promise.all([
+      supabase.from("male_profiles").select("id", { count: "exact", head: true }),
+      supabase.from("votes").select("target_id").eq("voter_id", uid).limit(10000),
+    ]);
+    if (cErr || vErr) return;
+
+    const total = maleCnt ?? 0;
+    if (total <= 0) return;
+    const unique = new Set((voteRows ?? []).map((r: { target_id: string }) => String(r.target_id))).size;
+    const serverUnlocked = isFemaleRankingPreferencesUnlocked(total, unique);
+
+    if (!serverUnlocked && !hadPending) return;
+    if (!serverUnlocked && hadPending) {
+      await new Promise((r) => setTimeout(r, 400));
+      const { data: voteRows2, error: vErr2 } = await supabase
+        .from("votes")
+        .select("target_id")
+        .eq("voter_id", uid)
+        .limit(10000);
+      if (vErr2) return;
+      const unique2 = new Set((voteRows2 ?? []).map((r: { target_id: string }) => String(r.target_id))).size;
+      if (!isFemaleRankingPreferencesUnlocked(total, unique2)) return;
+    }
+
     setFeatureGatesUnlocked(true);
+    if (total > 0) setMaleProfileTotal(total);
     setUnlockModal((prev) => {
       if (prev) return prev;
       return {
@@ -308,8 +343,8 @@ export default function FeedClient() {
     });
   }
 
-  function goNextCard() {
-    void tryShowFemaleUnlockModal();
+  async function goNextCard() {
+    await tryShowFemaleUnlockModal();
     setVoteFx(null);
     setLikeBurst(false);
     setFeaturePickerOpen(false);
@@ -357,8 +392,11 @@ export default function FeedClient() {
       setTodayVotes((n) => n + 1);
 
       const nextUnique = wasNewAllTime ? allTimeVotedIds.size + 1 : allTimeVotedIds.size;
-      if (nextUnique >= maleProfileTotal && maleProfileTotal > 0) {
+      if (maleProfileTotal > 0 && nextUnique >= maleProfileTotal) {
         setFeatureGatesUnlocked(true);
+        pendingUnlockAfterVoteRef.current = true;
+      } else if (wasNewAllTime && maleProfileTotal <= 0) {
+        pendingUnlockAfterVoteRef.current = true;
       }
 
       setLastVote({ targetId: current.profile_id, rating });
@@ -497,7 +535,117 @@ export default function FeedClient() {
           ? { label: "NORMAL +1", bg: "bg-neutral-900/25", border: "border-white/40", text: "text-white" }
           : null;
 
+  const unlockModalLayer = unlockPortalRoot ? (
+      <AnimatePresence>
+        {unlockModal ? (
+        <motion.div
+          key={unlockModal.nonce}
+          className="fixed inset-0 z-[200] grid place-items-center bg-black/60 p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={async () => {
+            await markUnlockCelebrationSeen();
+            setUnlockModal(null);
+          }}
+        >
+          <motion.div
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-neutral-950/90 p-6 text-white shadow-xl backdrop-blur"
+            initial={{ scale: 0.95, opacity: 0.6 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.98, opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="pointer-events-none absolute inset-0 opacity-70">
+              {Array.from({ length: 18 }).map((_, i) => {
+                const x = 10 + (i * 80) % 360;
+                const y = 120 + (i % 6) * 18;
+                const rot = (i % 2 ? 35 : -25) + i * 3;
+                return (
+                  <motion.span
+                    key={i}
+                    className="absolute text-sm"
+                    style={{
+                      left: `${(x / 360) * 100}%`,
+                      top: `${(y / 220) * 100}%`,
+                      color:
+                        i % 3 === 0
+                          ? "rgba(236,72,153,0.95)"
+                          : i % 3 === 1
+                            ? "rgba(168,85,247,0.9)"
+                            : "rgba(59,130,246,0.9)",
+                      filter: "drop-shadow(0 0 14px rgba(236,72,153,0.18))",
+                    }}
+                    initial={{ opacity: 0, y: 12, rotate: rot, scale: 0.7 }}
+                    animate={{
+                      opacity: [0, 1, 0],
+                      y: [12, -18, -42],
+                      rotate: [rot, rot + 20, rot + 30],
+                      scale: [0.7, 1.05, 0.9],
+                    }}
+                    transition={{
+                      duration: 1.6 + (i % 5) * 0.1,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay: (i % 6) * 0.08,
+                    }}
+                  >
+                    {i % 4 === 0 ? "✦" : "♥"}
+                  </motion.span>
+                );
+              })}
+            </div>
+
+            <div className="relative">
+              <div className="text-sm font-semibold text-white/80">UNLOCK!</div>
+              <div className="mt-2 text-xl font-extrabold tracking-tight">{unlockModal.title}</div>
+              <div className="mt-2 whitespace-pre-line text-sm text-white/75">{unlockModal.body}</div>
+              <div className="mt-5 grid gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
+                    onClick={async () => {
+                      await markUnlockCelebrationSeen();
+                      setUnlockModal(null);
+                      router.push("/ranking");
+                    }}
+                  >
+                    ランキングへ
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
+                    onClick={async () => {
+                      await markUnlockCelebrationSeen();
+                      setUnlockModal(null);
+                      router.push("/mypage/preferences");
+                    }}
+                  >
+                    好み分析へ
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
+                  onClick={async () => {
+                    await markUnlockCelebrationSeen();
+                    setUnlockModal(null);
+                  }}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+        ) : null}
+      </AnimatePresence>
+    ) : null;
+
   return (
+    <>
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 p-3 md:p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-white">男性評価</h1>
@@ -849,7 +997,7 @@ export default function FeedClient() {
         <div className="mt-3">
           <button
             type="button"
-            onClick={goNextCard}
+            onClick={() => void goNextCard()}
             disabled={!votedThisCard || voting}
             className="w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -864,115 +1012,9 @@ export default function FeedClient() {
           <span>左右スワイプ: 写真 / 上スワイプ: 次へ（投票後）</span>
         </div>
       </div>
-
-      {/* カードより後に描画して最前面に（投票エフェクトに隠れない） */}
-      <AnimatePresence>
-        {unlockModal ? (
-          <motion.div
-            key={unlockModal.nonce}
-            className="fixed inset-0 z-[200] grid place-items-center bg-black/60 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={async () => {
-              await markUnlockCelebrationSeen();
-              setUnlockModal(null);
-            }}
-          >
-            <motion.div
-              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-neutral-950/90 p-6 text-white shadow-xl backdrop-blur"
-              initial={{ scale: 0.95, opacity: 0.6 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.98, opacity: 0 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="pointer-events-none absolute inset-0 opacity-70">
-                {Array.from({ length: 18 }).map((_, i) => {
-                  const x = 10 + (i * 80) % 360;
-                  const y = 120 + (i % 6) * 18;
-                  const rot = (i % 2 ? 35 : -25) + i * 3;
-                  return (
-                    <motion.span
-                      key={i}
-                      className="absolute text-sm"
-                      style={{
-                        left: `${(x / 360) * 100}%`,
-                        top: `${(y / 220) * 100}%`,
-                        color:
-                          i % 3 === 0
-                            ? "rgba(236,72,153,0.95)"
-                            : i % 3 === 1
-                              ? "rgba(168,85,247,0.9)"
-                              : "rgba(59,130,246,0.9)",
-                        filter: "drop-shadow(0 0 14px rgba(236,72,153,0.18))",
-                      }}
-                      initial={{ opacity: 0, y: 12, rotate: rot, scale: 0.7 }}
-                      animate={{
-                        opacity: [0, 1, 0],
-                        y: [12, -18, -42],
-                        rotate: [rot, rot + 20, rot + 30],
-                        scale: [0.7, 1.05, 0.9],
-                      }}
-                      transition={{
-                        duration: 1.6 + (i % 5) * 0.1,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                        delay: (i % 6) * 0.08,
-                      }}
-                    >
-                      {i % 4 === 0 ? "✦" : "♥"}
-                    </motion.span>
-                  );
-                })}
-              </div>
-
-              <div className="relative">
-                <div className="text-sm font-semibold text-white/80">UNLOCK!</div>
-                <div className="mt-2 text-xl font-extrabold tracking-tight">{unlockModal.title}</div>
-                <div className="mt-2 whitespace-pre-line text-sm text-white/75">{unlockModal.body}</div>
-                <div className="mt-5 grid gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
-                      onClick={async () => {
-                        await markUnlockCelebrationSeen();
-                        setUnlockModal(null);
-                        router.push("/ranking");
-                      }}
-                    >
-                      ランキングへ
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
-                      onClick={async () => {
-                        await markUnlockCelebrationSeen();
-                        setUnlockModal(null);
-                        router.push("/mypage/preferences");
-                      }}
-                    >
-                      好み分析へ
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
-                    onClick={async () => {
-                      await markUnlockCelebrationSeen();
-                      setUnlockModal(null);
-                    }}
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
     </main>
+    {unlockPortalRoot ? createPortal(unlockModalLayer, unlockPortalRoot) : null}
+    </>
   );
 }
 
